@@ -1,84 +1,62 @@
 import os
 import cv2
 
-
-def extract_frames(video_path, output_folder, fps=5):
+def video_to_frames(input_dir, output_dir):
     """
-    Extract frames from a video at a specified frame rate and save them to an output folder.
+    Converts videos in a directory to sequences of JPG frames.
 
     Args:
-    video_path (str): Path to the video file.
-    output_folder (str): Path to the folder where frames will be saved.
-    fps (int): Number of frames per second to extract.
+    input_dir (str): Path to the directory containing videos.
+    output_dir (str): Path to the directory where frames will be saved.
     """
-    # Create the output folder if it doesn't exist
-    os.makedirs(output_folder, exist_ok=True)
 
-    # Open the video file
-    cap = cv2.VideoCapture(video_path)
-    if not cap.isOpened():
-        print(f"Error: Could not open video {video_path}")
-        return
+    # Create output directory if it doesn't exist
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
 
-    # Get the video frame rate
-    video_fps = cap.get(cv2.CAP_PROP_FPS)
-    frame_interval = int(video_fps / fps)
+    # Process each video file in the input directory
+    for filename in os.listdir(input_dir):
+        video_path = os.path.join(input_dir, filename)
 
-    frame_count = 0
-    saved_frame_count = 0
+        # Skip non-video files
+        if not os.path.isfile(video_path) or not video_path.lower().endswith(('.mp4', '.avi', '.mkv')):
+            print(f"Skipping non-video file: {filename}")
+            continue
 
-    while cap.isOpened():
-        ret, frame = cap.read()
-        if not ret:
-            break
+        # Open the video file
+        cap = cv2.VideoCapture(video_path)
+        if not cap.isOpened():
+            print(f"Error: Unable to open video {video_path}")
+            continue
 
-        # Save only every `frame_interval` frame
-        if frame_count % frame_interval == 0:
-            # Save the frame as a JPEG file
-            frame_filename = os.path.join(output_folder, f"frame_{saved_frame_count}.jpg")
-            cv2.imwrite(frame_filename, frame)
-            saved_frame_count += 1
+        frame_count = 0
+        while cap.isOpened():
+            ret, frame = cap.read()
+            if not ret:
+                break
 
-        frame_count += 1
+            # Save the frame as a JPG image with a unique name
+            # Include video name in the filename to avoid collisions
+            base_name = os.path.splitext(filename)[0]
+            output_path = os.path.join(output_dir, f"{base_name}_frame_{frame_count:04d}.jpg")
+            cv2.imwrite(output_path, frame)
+            frame_count += 1
 
-    cap.release()
-    print(f"Extracted {saved_frame_count} frames from {video_path} and saved in {output_folder}")
-
-
-def process_videos(input_folder, output_folder_real, output_folder_fake, fps=5):
-    """
-    Process videos in the input folders and save frames to respective output folders.
-
-    Args:
-    input_folder (str): Path to the folder containing videos.
-    output_folder_real (str): Path to save frames from real videos.
-    output_folder_fake (str): Path to save frames from fake videos.
-    fps (int): Number of frames per second to extract.
-    """
-    # Paths for real and fake video folders
-    real_videos_path = os.path.join(input_folder, "Celeb-real")
-    fake_videos_path = os.path.join(input_folder, "Celeb-synthesis")
-
-    # Process real videos
-    for video_file in os.listdir(real_videos_path):
-        video_path = os.path.join(real_videos_path, video_file)
-        if os.path.isfile(video_path):
-            output_path = os.path.join(output_folder_real, os.path.splitext(video_file)[0])
-            extract_frames(video_path, output_path, fps=fps)
-
-    # Process fake videos
-    for video_file in os.listdir(fake_videos_path):
-        video_path = os.path.join(fake_videos_path, video_file)
-        if os.path.isfile(video_path):
-            output_path = os.path.join(output_folder_fake, os.path.splitext(video_file)[0])
-            extract_frames(video_path, output_path, fps=fps)
+        cap.release()
+        print(f"Extracted {frame_count} frames from {filename} to {output_dir}")
 
 
-if __name__ == "__main__":
-    # Define the paths
-    input_folder = "/home/ubuntu/Group6_DL_FTP/data"
-    output_folder_real = os.path.join(input_folder, "Images/real")
-    output_folder_fake = os.path.join(input_folder, "Images/fake")
+# Paths for real and synthetic videos
+real_videos_path = "/home/ubuntu/Group6_DL_FTP/data/Celeb-real"
+synthetic_videos_path = "/home/ubuntu/Group6_DL_FTP/data/Celeb-synthesis"
 
-    # Process the videos
-    process_videos(input_folder, output_folder_real, output_folder_fake, fps=5)
+# Output directories for extracted frames
+output_dir_real = "/home/ubuntu/Group6_DL_FTP/data/Images/real"
+output_dir_synthetic = "/home/ubuntu/Group6_DL_FTP/data/Images/fake"
+
+# Process the videos
+print("Processing real videos...")
+video_to_frames(real_videos_path, output_dir_real)
+
+print("Processing synthetic videos...")
+video_to_frames(synthetic_videos_path, output_dir_synthetic)

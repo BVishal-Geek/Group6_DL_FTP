@@ -13,3 +13,7 @@
     2. Writing data loader function for video frame extraction for implementing CNN. 
 
 
+## Day 3: November 27
+#### Notes
+    1. implemented a 3 layer CNN and passing the 10000 images from each class. Evaluation metrics are perfect and on the point. 
+    
