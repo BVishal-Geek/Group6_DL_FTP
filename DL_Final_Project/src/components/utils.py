@@ -1,4 +1,5 @@
 import os
+import gc
 import pandas as pd
 import tqdm
 import matplotlib.pyplot as plt
@@ -9,8 +10,76 @@ from keras.applications import VGG16, ResNet50, InceptionV3, EfficientNetB6, Eff
 from sklearn.model_selection import train_test_split
 
 from keras.utils import to_categorical
+from tensorflow.keras.models import Sequential
 
+from tensorflow.keras.layers import Dense, Dropout, Flatten
+from sklearn.metrics import classification_report
 #%%
+
+class CustomModel:
+    def __init__(self, input_shape):
+        # Initialize the model
+        self.model = Sequential([
+            Dense(512, activation='relu', input_shape=(input_shape,)),
+            Dropout(0.5),
+            Dense(256, activation='relu'),
+            Dropout(0.5),
+            Dense(128, activation='relu'),
+            Dropout(0.5),
+            Dense(64, activation='relu'),
+            Dropout(0.5),
+            Dense(2, activation='softmax')
+        ])
+        print("Model initialized.")
+
+    def compile_model(self):
+        # Compile the model
+        self.model.compile(
+            loss='categorical_crossentropy',
+            optimizer='adam',
+            metrics=['accuracy']
+        )
+        print("Model compiled.")
+
+    def train_model(self, X_train, y_train, batch_size=32, epochs=10, validation_data=None, callbacks=None):
+        # Train the model
+        history = self.model.fit(
+            X_train, y_train,
+            batch_size=batch_size,
+            epochs=epochs,
+            validation_data=validation_data,
+            verbose=1,
+            callbacks=callbacks
+        )
+        print("Training completed.")
+        return history
+
+    def save_model(self, file_path):
+        # Save model weights
+        self.model.save_weights(file_path)
+        print(f"Weights saved to {file_path}.")
+
+    def load_model(self, file_path):
+        # Load model weights
+        self.model.load_weights(file_path)
+        print(f"Weights loaded from {file_path}.")
+
+    def test_model(self, test_images, test_labels):
+        # Test the model
+        scores = self.model.evaluate(test_images, test_labels, verbose=0)
+        print(f"Test Loss: {scores[0]:.4f}, Test Accuracy: {scores[1]:.4f}")
+
+        # Generate predictions
+        predictions = self.model.predict(test_images)
+        predicted_classes = predictions.argmax(axis=1)
+        true_classes = test_labels.argmax(axis=1)
+
+        # Classification Report
+        report = classification_report(true_classes, predicted_classes, target_names=['Class 0', 'Class 1'])
+        print("\nClassification Report:\n", report)
+
+        return scores, report
+
 
 def image_to_array(mapping, image_fp, split, image_size=224):
     image_array = []
@@ -90,10 +159,30 @@ def process_input(X, y, model, num_classes, input_type):
 
         elif model == 'ResNet50':
             base_model = ResNet50(weights='imagenet', include_top=False)
-            X_train = base_model.predict(X_train)
+            batch_size = 32  # Set based on available memory
+            X_train_features = []
+            X_test_features = []
+
+            # Processing X_train in batches
+            for i in range(0, X_train.shape[0], batch_size):
+                batch = X_train[i:i + batch_size]
+                features = base_model.predict(batch)
+                X_train_features.append(features)
+                del batch  # Free up memory
+                gc.collect()  # Force garbage collection
+
+            X_train = np.vstack(X_train_features)
             X_train = X_train.reshape(X_train.shape[0], -1)
 
-            X_test = base_model.predict(X_test)
+            # Processing X_test in batches
+            for i in range(0, X_test.shape[0], batch_size):
+                batch = X_test[i:i + batch_size]
+                features = base_model.predict(batch)
+                X_test_features.append(features)
+                del batch  # Free up memory
+                gc.collect()  # Force garbage collection
+
+            X_test = np.vstack(X_test_features)
             X_test = X_test.reshape(X_test.shape[0], -1)
 
         elif model == 'InceptionV3':
@@ -129,9 +218,26 @@ def process_input(X, y, model, num_classes, input_type):
             X = X.reshape(X[0], X[1]*X[2]*X[3])
 
         elif model == 'ResNet50':
+            print('-----EXTRACTING FEATURES FOR TEST IMAGES-----')
             base_model = ResNet50(weights='imagenet', include_top=False)
-            X = base_model.predict(X)
-            X = X.reshape(X[0], X[1] * X[2] * X[3])
+            batch_size = 32  # Set based on available memory
+            X_test_features = []
+
+            # Processing X_train in batches
+            for i in range(0, X.shape[0], batch_size):
+                batch = X[i:i + batch_size]
+                features = base_model.predict(batch)
+                X_test_features.append(features)
+                del batch  # Free up memory
+                gc.collect()  # Force garbage collection
+            print(f'-----FINISHED PROCESSING ALL TEST IMAGE BATCHES-----')
+
+            X = np.vstack(X_test_features)
+
+            print(f'-----RESHAPING IMAGE SHAPES-----')
+            X = X.reshape(X.shape[0], -1)
+
+            print(f'-----INPUT SHAPE: {X.shape}-----')
 
         elif model == 'InceptionV3':
             base_model = InceptionV3(weights='imagenet', include_top=False)
