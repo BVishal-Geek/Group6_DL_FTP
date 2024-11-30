@@ -1,75 +1,78 @@
 import os
 import numpy as np
 import pandas as pd
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+from tensorflow.keras import layers, models, optimizers, backend as K
 from sklearn.metrics import accuracy_score, f1_score
-from tensorflow.keras import layers, models, optimizers
-from tensorflow.keras.preprocessing.image import ImageDataGenerator, load_img, img_to_array
-from tensorflow.keras import backend as K
 
-# Paths to Excel files and image directories
+# Base directories for common data and Excel files
+common_base_dir = '/home/ubuntu/Final_Project/data/'
 excel_dir = '/home/ubuntu/Final_Project/excel/'
-image_dir = '/home/ubuntu/Final_Project/data/faceapp/'
 
-# Image size for VGG input
+# Image size for model input
 IMG_SIZE = (224, 224)
 
-
-# Function to load data from Excel files with '_mask' in their names
-def load_mask_data(folder_name):
-    excel_path = os.path.join(excel_dir, f"{folder_name}.xlsx")
-    if not os.path.exists(excel_path):
-        raise FileNotFoundError(f"Excel file not found: {excel_path}")
-
-    # Load the Excel file
-    df = pd.read_excel(excel_path)
-
-    # Prepare image paths and labels
-    images = []
-    labels = []
-    for _, row in df.iterrows():
-        image_path = os.path.join(image_dir, folder_name, row['imageid'])
-        if os.path.exists(image_path):
-            img = load_img(image_path, target_size=IMG_SIZE)  # Load and resize image
-            img_array = img_to_array(img) / 255.0  # Normalize pixel values to [0, 1]
-            images.append(img_array)
-            labels.append(row['classification'])
-
-    return np.array(images), np.array(labels)
+# Batch size for data loading
+BATCH_SIZE = 32
 
 
-# Load train, validation, and test data from masked Excel files
-train_images, train_labels = load_mask_data('train')
-val_images, val_labels = load_mask_data('validation')
-test_images, test_labels = load_mask_data('test')
+def create_data_generator(excel_file, image_folder):
+    """Create a data generator for loading images and labels."""
+    df = pd.read_excel(excel_file)
+    datagen = ImageDataGenerator(rescale=1. / 255)  # Normalize pixel values to [0, 1]
+
+    generator = datagen.flow_from_dataframe(
+        dataframe=df,
+        directory=image_folder,
+        x_col='imageid',
+        y_col='classification',
+        target_size=IMG_SIZE,
+        batch_size=BATCH_SIZE,
+        class_mode='raw',  # Use 'raw' for regression or binary classification without one-hot encoding
+        shuffle=True
+    )
+
+    return generator
+
+
+# Create data generators for train, validation, and test datasets
+train_generator = create_data_generator(
+    os.path.join(excel_dir, 'train.xlsx'),
+    os.path.join(common_base_dir, 'common_train')
+)
+val_generator = create_data_generator(
+    os.path.join(excel_dir, 'validation.xlsx'),
+    os.path.join(common_base_dir, 'common_validation')
+)
+test_generator = create_data_generator(
+    os.path.join(excel_dir, 'test.xlsx'),
+    os.path.join(common_base_dir, 'common_test')
+)
 
 
 # Define the VGG-like architecture from scratch
 def build_vgg_model(input_shape):
     model = models.Sequential()
 
-    # Block 1
+    # VGG-style convolutional blocks
     model.add(layers.Conv2D(64, (3, 3), activation='relu', padding='same', input_shape=input_shape))
     model.add(layers.Conv2D(64, (3, 3), activation='relu', padding='same'))
     model.add(layers.MaxPooling2D((2, 2), strides=(2, 2)))
 
-    # Block 2
     model.add(layers.Conv2D(128, (3, 3), activation='relu', padding='same'))
     model.add(layers.Conv2D(128, (3, 3), activation='relu', padding='same'))
     model.add(layers.MaxPooling2D((2, 2), strides=(2, 2)))
 
-    # Block 3
     model.add(layers.Conv2D(256, (3, 3), activation='relu', padding='same'))
     model.add(layers.Conv2D(256, (3, 3), activation='relu', padding='same'))
     model.add(layers.Conv2D(256, (3, 3), activation='relu', padding='same'))
     model.add(layers.MaxPooling2D((2, 2), strides=(2, 2)))
 
-    # Block 4
     model.add(layers.Conv2D(512, (3, 3), activation='relu', padding='same'))
     model.add(layers.Conv2D(512, (3, 3), activation='relu', padding='same'))
     model.add(layers.Conv2D(512, (3, 3), activation='relu', padding='same'))
     model.add(layers.MaxPooling2D((2, 2), strides=(2, 2)))
 
-    # Block 5
     model.add(layers.Conv2D(512, (3, 3), activation='relu', padding='same'))
     model.add(layers.Conv2D(512, (3, 3), activation='relu', padding='same'))
     model.add(layers.Conv2D(512, (3, 3), activation='relu', padding='same'))
@@ -109,27 +112,19 @@ model.compile(optimizer=optimizers.Adam(),
 # Print the model summary
 model.summary()
 
-# Data augmentation for training data to prevent overfitting
-datagen = ImageDataGenerator(
-    rotation_range=20,
-    width_shift_range=0.2,
-    height_shift_range=0.2,
-    horizontal_flip=True,
-)
-datagen.fit(train_images)
-
-# Train the model
+# Train the model using the data generators
 history = model.fit(
-    datagen.flow(train_images, train_labels, batch_size=32),
-    validation_data=(val_images, val_labels),
+    train_generator,
+    validation_data=val_generator,
     epochs=10,
 )
 
-# Evaluate the model on test data
-predictions = model.predict(test_images)
+# Evaluate the model on test data using the test generator
+predictions = model.predict(test_generator)
 predicted_classes = (predictions > 0.5).astype(int)[:, 0]
 
-# Calculate accuracy and F1 score
+# Calculate accuracy and F1 score on test data
+test_labels = np.concatenate([test_generator[i][1] for i in range(len(test_generator))])
 accuracy = accuracy_score(test_labels, predicted_classes)
 f1 = f1_score(test_labels, predicted_classes)
 
