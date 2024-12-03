@@ -5,13 +5,72 @@ import matplotlib.pyplot as plt
 import numpy as np
 import cv2
 from keras.preprocessing import image
+import tensorflow as tf
+from tensorflow.keras.preprocessing.image import img_to_array, array_to_img
 from tensorflow.keras.applications import ResNet50, VGG16, InceptionV3
-from tensorflow.keras.layers import Dense, GlobalAveragePooling2D
+from tensorflow.keras.layers import Dense, GlobalAveragePooling2D, RandomCrop, Resizing, RandomFlip
 from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import Adam, AdamW, SGD
 #%%
 
+def generate_augmentations(images_fp, images_names, output_info_dir, output_arr_dir, target_size=(224, 224, 3), augmentations=None, seed=6303):
+    if augmentations is None:
+        random_crop = RandomCrop(height=112, width=112)  # Crop smaller region
+        resize = Resizing(height=224, width=224)
+        flip = RandomFlip(mode="horizontal_and_vertical", seed=seed)
+
+        augmentations = tf.keras.Sequential([random_crop, resize, flip])
+
+    image_array = []
+    data = {
+
+        'original_image_name': [],
+        'original_image_path': [],
+        'augmented_image_name': [],
+        'augmented_image_path': []
+    }
+
+
+    for image_file in tqdm.tqdm(images_names):
+        # Check if it's a valid file
+        image_path = os.path.join(images_fp, image_file)
+        if not os.path.isfile(image_path):
+            print(f"Skipping {image_file}: Not a valid file")
+            continue
+
+        img = image.load_img(image_path, target_size=target_size)
+
+        # Convert the image to a numpy array if it is not already
+        if not isinstance(img, np.ndarray):
+            img = img_to_array(img)
+
+        # Ensure the image is scaled to [0, 1]
+        img = img / 255.0 if img.max() > 1 else img
+
+        # Add batch dimension and convert to a tensor
+        image_tensor = tf.expand_dims(img, axis=0)
+
+        # Apply the augmentation
+        augmented_image_tensor = augmentations(image_tensor, training=True)
+
+        # Remove batch dimension and convert back to numpy array
+        augmented_image = tf.squeeze(augmented_image_tensor).numpy()
+
+        image_array.append(augmented_image)
+
+        data['original_image_name'].append(image_file)
+        data['original_image_path'].append(images_fp)
+        data['augmented_image_name'].append(image_file + '_augmented')
+        data['augmented_image_path'].append(output_arr_dir)
+
+    data = pd.DataFrame(data)
+    data.to_excel(output_info_dir + '/augmented_images.xlsx')
+    print(f'Augmentation information saved to {output_info_dir}')
+
+    np.save(output_arr_dir + '/augmented_images.npy', image_array)
+
 def plot_accuracy(history, model_name, layers_info, image_name):
+    plt.figure()
     plt.plot(history.history['accuracy'])
     plt.plot(history.history['val_accuracy'])
     plt.title(f'{model_name} Accuracy: {layers_info}')
@@ -22,6 +81,7 @@ def plot_accuracy(history, model_name, layers_info, image_name):
     print(f'-----{image_name}.png SAVED-----')
 
 def plot_loss(history, model_name, layers_info, image_name):
+    plt.figure()
     plt.plot(history.history['loss'])
     plt.plot(history.history['val_loss'])
     plt.title(f'{model_name} Loss: {layers_info}')
@@ -71,7 +131,7 @@ class FineTuneModel:
         x = GlobalAveragePooling2D()(x)
         x = Dense(256, activation='relu')(x)
         x = Dense(128, activation='relu')(x)
-        predictions = Dense(self.num_classes, activation='softmax')(x)
+        predictions = Dense(self.num_classes, activation='sigmoid')(x)
         self.model = Model(inputs=self.base_model.input, outputs=predictions)
 
     def freeze_base_layers(self):
@@ -108,9 +168,9 @@ class FineTuneModel:
         else:
             raise ValueError(f"Unsupported optimizer: {optimizer}")
 
-        self.model.compile(optimizer=opt, loss='categorical_crossentropy', metrics=['accuracy'])
+        self.model.compile(optimizer=opt, loss='binary_crossentropy', metrics=['accuracy'])
 
-    def train_model(self, train_data, val_data, epochs=10, batch_size=8):
+    def train_model(self, train_data, val_data, epochs=10, batch_size=8, callbacks=None):
         """
         Train the model on the given dataset.
 
@@ -131,7 +191,8 @@ class FineTuneModel:
             validation_data=(X_val, y_val),
             epochs=epochs,
             batch_size=batch_size,
-            verbose=2
+            verbose=2,
+            callbacks=callbacks
         )
         return history
 
