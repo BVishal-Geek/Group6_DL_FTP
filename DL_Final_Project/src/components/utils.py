@@ -1,19 +1,14 @@
 import os
-import gc
 import pandas as pd
 import tqdm
 import matplotlib.pyplot as plt
 import numpy as np
 import cv2
 from keras.preprocessing import image
-from keras.applications import VGG16, ResNet50, InceptionV3, EfficientNetB6, EfficientNetV2S
-from sklearn.model_selection import train_test_split
-
-from keras.utils import to_categorical
-from tensorflow.keras.models import Sequential
-
-from tensorflow.keras.layers import Dense, Dropout, Flatten, Conv2D, MaxPooling2D
-from sklearn.metrics import classification_report
+from tensorflow.keras.applications import ResNet50, VGG16, InceptionV3
+from tensorflow.keras.layers import Dense, GlobalAveragePooling2D
+from tensorflow.keras.models import Model
+from tensorflow.keras.optimizers import Adam, AdamW, SGD
 #%%
 
 def plot_accuracy(history, model_name, layers_info, image_name):
@@ -37,70 +32,117 @@ def plot_loss(history, model_name, layers_info, image_name):
     print(f'-----{image_name}.png SAVED-----')
 
 
-class CustomModel:
-    def __init__(self, input_shape):
-        # Initialize the model
-        self.model = Sequential([
 
-            Dense(512, activation='relu', input_shape=(input_shape,)),
-            Dropout(0.5),
-            Dense(256, activation='relu'),
-            Dropout(0.5),
-            Dense(128, activation='relu'),
-            Dropout(0.5),
-            Dense(64, activation='relu'),
-            Dropout(0.5),
-            Dense(2, activation='softmax')
-        ])
-        print("Model initialized.")
 
-    def compile_model(self):
-        # Compile the model
-        self.model.compile(
-            loss='categorical_crossentropy',
-            optimizer='adam',
-            metrics=['accuracy']
-        )
-        print("Model compiled.")
+class FineTuneModel:
+    def __init__(self, model_name='ResNet50', input_shape=(224, 224, 3), num_classes=2):
+        """
+        Initialize the FineTuneModel class.
 
-    def train_model(self, X_train, y_train, batch_size=32, epochs=10, validation_data=None, callbacks=None):
-        # Train the model
+        Parameters:
+        - model_name: str, name of the pre-trained model to use ('ResNet50', 'VGG16', 'InceptionV3').
+        - input_shape: tuple, input shape of the images (default: (224, 224, 3)).
+        - num_classes: int, number of output classes.
+        """
+        self.model_name = model_name
+        self.input_shape = input_shape
+        self.num_classes = num_classes
+        self.base_model = self._load_pretrained_model()
+        self.model = None
+
+    def _load_pretrained_model(self):
+        """
+        Load the specified pre-trained model without the top layer.
+        """
+        if self.model_name == 'ResNet50':
+            return ResNet50(weights='imagenet', include_top=False, input_shape=self.input_shape)
+        elif self.model_name == 'VGG16':
+            return VGG16(weights='imagenet', include_top=False, input_shape=self.input_shape)
+        elif self.model_name == 'InceptionV3':
+            return InceptionV3(weights='imagenet', include_top=False, input_shape=self.input_shape)
+        else:
+            raise ValueError(f"Unsupported model_name: {self.model_name}")
+
+    def add_custom_layers(self):
+        """
+        Add custom top layers to the model.
+        """
+        x = self.base_model.output
+        x = GlobalAveragePooling2D()(x)
+        x = Dense(256, activation='relu')(x)
+        x = Dense(128, activation='relu')(x)
+        predictions = Dense(self.num_classes, activation='softmax')(x)
+        self.model = Model(inputs=self.base_model.input, outputs=predictions)
+
+    def freeze_base_layers(self):
+        """
+        Freeze all layers in the base model to retain pre-trained features.
+        """
+        for layer in self.base_model.layers:
+            layer.trainable = False
+
+    def unfreeze_layers(self, num_layers):
+        """
+        Unfreeze the last `num_layers` layers of the model for fine-tuning.
+
+        Parameters:
+        - num_layers: int, number of layers to unfreeze from the end.
+        """
+        for layer in self.model.layers[-num_layers:]:
+            layer.trainable = True
+
+    def compile_model(self, learning_rate=0.0001, optimizer='adam'):
+        """
+        Compile the model with the specified optimizer and learning rate.
+
+        Parameters:
+        - learning_rate: float, learning rate for the optimizer.
+        - optimizer: str, name of the optimizer ('adam' or 'adamw').
+        """
+        if optimizer == 'adam':
+            opt = Adam(learning_rate=learning_rate)
+        elif optimizer == 'adamw':
+            opt = AdamW(learning_rate=learning_rate)
+        elif optimizer == 'sgd':
+            opt = SGD(learning_rate=learning_rate)
+        else:
+            raise ValueError(f"Unsupported optimizer: {optimizer}")
+
+        self.model.compile(optimizer=opt, loss='categorical_crossentropy', metrics=['accuracy'])
+
+    def train_model(self, train_data, val_data, epochs=10, batch_size=8):
+        """
+        Train the model on the given dataset.
+
+        Parameters:
+        - train_data: tuple, training data (X_train, y_train).
+        - val_data: tuple, validation data (X_val, y_val).
+        - epochs: int, number of epochs to train (default: 10).
+        - batch_size: int, size of the training batches (default: 8).
+
+        Returns:
+        - history: training history object.
+        """
+        X_train, y_train = train_data
+        X_val, y_val = val_data
+
         history = self.model.fit(
             X_train, y_train,
-            batch_size=batch_size,
+            validation_data=(X_val, y_val),
             epochs=epochs,
-            validation_data=validation_data,
-            callbacks=callbacks
+            batch_size=batch_size,
+            verbose=2
         )
-        print("Training completed.")
         return history
 
-    def save_model(self, file_path):
-        # Save model weights
-        self.model.save_weights(file_path)
-        print(f"Weights saved to {file_path}.")
+    def save_model(self, filepath):
+        """
+        Save the trained model to the specified filepath.
 
-    def load_model(self, file_path):
-        # Load model weights
-        self.model.load_weights(file_path)
-        print(f"Weights loaded from {file_path}.")
-
-    def test_model(self, test_images, test_labels):
-        # Test the model
-        scores = self.model.evaluate(test_images, test_labels, verbose=0)
-        print(f"Test Loss: {scores[0]:.4f}, Test Accuracy: {scores[1]:.4f}")
-
-        # Generate predictions
-        predictions = self.model.predict(test_images)
-        predicted_classes = predictions.argmax(axis=1)
-        true_classes = test_labels.argmax(axis=1)
-
-        # Classification Report
-        report = classification_report(true_classes, predicted_classes, target_names=['Class 0', 'Class 1'])
-        print("\nClassification Report:\n", report)
-
-        return scores, report
-
+        Parameters:
+        - filepath: str, path to save the model.
+        """
+        self.model.save(filepath)
 
 def image_to_array(mapping, image_fp, split, image_size=224):
     image_array = []
@@ -132,371 +174,6 @@ def image_to_array(mapping, image_fp, split, image_size=224):
 
     X = np.array(image_array)
     return X, y_array
-
-def process_input(X, y, model, num_classes, input_type, batch_size, trainable_layers=None):
-    """
-        Processes input data for training or testing based on the specified model and input type.
-
-        Args:
-            X (numpy.ndarray): Input data containing images.
-            y (numpy.ndarray): Labels corresponding to the input data.
-            model (str): The name of the pre-trained model to use for feature extraction.
-                Options include:
-                    - 'VGG16'
-                    - 'ResNet50'
-                    - 'InceptionV3'
-                    - 'EfficientNetB6'
-                    - 'EfficientNetV2S'
-            num_classes (int): Number of output classes for the classification task.
-            input_type (str): Specifies the type of input processing.
-                - 'train': Splits data into training and testing sets, extracts features, and reshapes.
-                - 'test': Extracts features from the input data without splitting.
-
-        Returns:
-            If `input_type` is 'train':
-                tuple: (X_train, X_test, y_train, y_test)
-                    - X_train (numpy.ndarray): Processed training features.
-                    - X_test (numpy.ndarray): Processed testing features.
-                    - y_train (numpy.ndarray): One-hot encoded training labels.
-                    - y_test (numpy.ndarray): One-hot encoded testing labels.
-            If `input_type` is 'test':
-                tuple: (X, y)
-                    - X (numpy.ndarray): Processed input features.
-                    - y (numpy.ndarray): One-hot encoded labels."""
-
-    y = to_categorical(y, num_classes=num_classes)
-
-    if input_type == 'train':
-        X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=6303, test_size=0.2, stratify=y)
-
-        if model == 'VGG16':
-            base_model = VGG16(weights='imagenet', include_top=False)
-            batch_size = batch_size  # Set based on available memory
-            X_train_features = []
-            X_test_features = []
-
-            # Set base model layers as trainable or not
-            if trainable_layers is not None:
-                for layer in base_model.layers[:-trainable_layers]:
-                    layer.trainable = False
-            print(f'-----BEGINNING PROCESSING OF X_TRAIN IMAGE BATCHES-----')
-
-
-            # Processing X_train in batches
-            for i in range(0, X_train.shape[0], batch_size):
-                batch = X_train[i:i + batch_size]
-                features = base_model.predict(batch)
-                X_train_features.append(features)
-                del batch  # Free up memory
-                gc.collect()  # Force garbage collection
-            print(f'-----FINISHED PROCESSING X_TRAIN IMAGE BATCHES-----')
-
-            X_train = np.vstack(X_train_features)
-            X_train = X_train.reshape(X_train.shape[0], -1)
-            print(f'-----X_TRAIN SHAPE {X_train.shape}-----')
-
-
-            print(f'-----BEGINNING PROCESSING OF X_TEST IMAGE BATCHES-----')
-
-            # Processing X_test in batches
-            for i in range(0, X_test.shape[0], batch_size):
-                batch = X_test[i:i + batch_size]
-                features = base_model.predict(batch)
-                X_test_features.append(features)
-                del batch  # Free up memory
-                gc.collect()  # Force garbage collection
-
-            print(f'-----FINISHED PROCESSING X_TEST IMAGE BATCHES-----')
-
-
-            X_test = np.vstack(X_test_features)
-            X_test = X_test.reshape(X_test.shape[0], -1)
-            print(f'-----X_TEST SHAPE {X_test.shape}-----')
-
-        elif model == 'ResNet50':
-            base_model = ResNet50(weights='imagenet', include_top=False)
-            batch_size = batch_size  # Set based on available memory
-
-            # Set base model layers as trainable or not
-            if trainable_layers is not None:
-                for layer in base_model.layers[:-trainable_layers]:
-                    layer.trainable = False
-
-            X_train_features = []
-            X_test_features = []
-
-            print(f'-----BEGINNING PROCESSING OF X_TRAIN IMAGE BATCHES-----')
-
-            # Processing X_train in batches
-            for i in range(0, X_train.shape[0], batch_size):
-                batch = X_train[i:i + batch_size]
-                features = base_model.predict(batch)
-                X_train_features.append(features)
-                del batch  # Free up memory
-                gc.collect()  # Force garbage collection
-            print(f'-----FINISHED PROCESSING X_TRAIN IMAGE BATCHES-----')
-
-            X_train = np.vstack(X_train_features)
-            X_train = X_train.reshape(X_train.shape[0], -1)
-            print(f'-----X_TRAIN SHAPE {X_train.shape}-----')
-
-            print(f'-----BEGINNING PROCESSING OF X_TEST IMAGE BATCHES-----')
-
-            # Processing X_test in batches
-            for i in range(0, X_test.shape[0], batch_size):
-                batch = X_test[i:i + batch_size]
-                features = base_model.predict(batch)
-                X_test_features.append(features)
-                del batch  # Free up memory
-                gc.collect()  # Force garbage collection
-
-            print(f'-----FINISHED PROCESSING X_TEST IMAGE BATCHES-----')
-
-            X_test = np.vstack(X_test_features)
-            X_test = X_test.reshape(X_test.shape[0], -1)
-            print(f'-----X_TEST SHAPE {X_test.shape}-----')
-
-
-        elif model == 'InceptionV3':
-            base_model = InceptionV3(weights='imagenet', include_top=False)
-            batch_size = batch_size  # Set based on available memory
-            X_train_features = []
-            X_test_features = []
-
-            # Set base model layers as trainable or not
-            if trainable_layers is not None:
-                for layer in base_model.layers[:-trainable_layers]:
-                    layer.trainable = False
-            print(f'-----BEGINNING PROCESSING OF X_TRAIN IMAGE BATCHES-----')
-
-            # Processing X_train in batches
-            for i in range(0, X_train.shape[0], batch_size):
-                batch = X_train[i:i + batch_size]
-                features = base_model.predict(batch)
-                X_train_features.append(features)
-                del batch  # Free up memory
-                gc.collect()  # Force garbage collection
-            print(f'-----FINISHED PROCESSING X_TRAIN IMAGE BATCHES-----')
-
-            X_train = np.vstack(X_train_features)
-            X_train = X_train.reshape(X_train.shape[0], -1)
-            print(f'-----X_TRAIN SHAPE {X_train.shape}-----')
-
-            print(f'-----BEGINNING PROCESSING OF X_TEST IMAGE BATCHES-----')
-
-            # Processing X_test in batches
-            for i in range(0, X_test.shape[0], batch_size):
-                batch = X_test[i:i + batch_size]
-                features = base_model.predict(batch)
-                X_test_features.append(features)
-                del batch  # Free up memory
-                gc.collect()  # Force garbage collection
-
-            print(f'-----FINISHED PROCESSING X_TEST IMAGE BATCHES-----')
-
-            X_test = np.vstack(X_test_features)
-            X_test = X_test.reshape(X_test.shape[0], -1)
-            print(f'-----X_TEST SHAPE {X_test.shape}-----')
-
-        elif model == 'EfficientNetB6':
-            base_model = EfficientNetB6(weights='imagenet', include_top=False)
-            batch_size = batch_size  # Set based on available memory
-            X_train_features = []
-            X_test_features = []
-
-            # Set base model layers as trainable or not
-            if trainable_layers is not None:
-                for layer in base_model.layers[:-trainable_layers]:
-                    layer.trainable = False
-            print(f'-----BEGINNING PROCESSING OF X_TRAIN IMAGE BATCHES-----')
-
-            # Processing X_train in batches
-            for i in range(0, X_train.shape[0], batch_size):
-                batch = X_train[i:i + batch_size]
-                features = base_model.predict(batch)
-                X_train_features.append(features)
-                del batch  # Free up memory
-                gc.collect()  # Force garbage collection
-            print(f'-----FINISHED PROCESSING X_TRAIN IMAGE BATCHES-----')
-
-            X_train = np.vstack(X_train_features)
-            X_train = X_train.reshape(X_train.shape[0], -1)
-            print(f'-----X_TRAIN SHAPE {X_train.shape}-----')
-
-            print(f'-----BEGINNING PROCESSING OF X_TEST IMAGE BATCHES-----')
-
-            # Processing X_test in batches
-            for i in range(0, X_test.shape[0], batch_size):
-                batch = X_test[i:i + batch_size]
-                features = base_model.predict(batch)
-                X_test_features.append(features)
-                del batch  # Free up memory
-                gc.collect()  # Force garbage collection
-
-            print(f'-----FINISHED PROCESSING X_TEST IMAGE BATCHES-----')
-
-            X_test = np.vstack(X_test_features)
-            X_test = X_test.reshape(X_test.shape[0], -1)
-            print(f'-----X_TEST SHAPE {X_test.shape}-----')
-
-        elif model == 'EfficientNetV2S':
-            base_model = EfficientNetV2S(weights='imagenet', include_top=False)
-            batch_size = batch_size  # Set based on available memory
-            X_train_features = []
-            X_test_features = []
-
-            # Set base model layers as trainable or not
-            if trainable_layers is not None:
-                for layer in base_model.layers[:-trainable_layers]:
-                    layer.trainable = False
-            print(f'-----BEGINNING PROCESSING OF X_TRAIN IMAGE BATCHES-----')
-
-            # Processing X_train in batches
-            for i in range(0, X_train.shape[0], batch_size):
-                batch = X_train[i:i + batch_size]
-                features = base_model.predict(batch)
-                X_train_features.append(features)
-                del batch  # Free up memory
-                gc.collect()  # Force garbage collection
-            print(f'-----FINISHED PROCESSING X_TRAIN IMAGE BATCHES-----')
-
-            X_train = np.vstack(X_train_features)
-            X_train = X_train.reshape(X_train.shape[0], -1)
-            print(f'-----X_TRAIN SHAPE {X_train.shape}-----')
-
-            print(f'-----BEGINNING PROCESSING OF X_TEST IMAGE BATCHES-----')
-
-            # Processing X_test in batches
-            for i in range(0, X_test.shape[0], batch_size):
-                batch = X_test[i:i + batch_size]
-                features = base_model.predict(batch)
-                X_test_features.append(features)
-                del batch  # Free up memory
-                gc.collect()  # Force garbage collection
-
-            print(f'-----FINISHED PROCESSING X_TEST IMAGE BATCHES-----')
-
-            X_test = np.vstack(X_test_features)
-            X_test = X_test.reshape(X_test.shape[0], -1)
-            print(f'-----X_TEST SHAPE {X_test.shape}-----')
-
-        print(f'----------X_TRAIN LENGTH IS {len(X_train)}----------')
-        print(f'----------X_TRAIN SHAPE IS {X_train.shape}----------')
-
-        return X_train, X_test, y_train, y_test
-
-    elif input_type == 'test':
-        if model == 'VGG16':
-            base_model = VGG16(weights='imagenet', include_top=False)
-            print('-----EXTRACTING FEATURES FOR TEST IMAGES-----')
-            batch_size = batch_size  # Set based on available memory
-            X_test_features = []
-
-            # Processing X_train in batches
-            for i in range(0, X.shape[0], batch_size):
-                batch = X[i:i + batch_size]
-                features = base_model.predict(batch)
-                X_test_features.append(features)
-                del batch  # Free up memory
-                gc.collect()  # Force garbage collection
-            print(f'-----FINISHED PROCESSING ALL TEST IMAGE BATCHES-----')
-
-            X = np.vstack(X_test_features)
-
-            print(f'-----RESHAPING IMAGE SHAPES-----')
-            X = X.reshape(X.shape[0], -1)
-
-            print(f'-----INPUT SHAPE: {X.shape}-----')
-
-        elif model == 'ResNet50':
-            base_model = ResNet50(weights='imagenet', include_top=False)
-            print('-----EXTRACTING FEATURES FOR TEST IMAGES-----')
-            batch_size = batch_size  # Set based on available memory
-            X_test_features = []
-
-            # Processing X_train in batches
-            for i in range(0, X.shape[0], batch_size):
-                batch = X[i:i + batch_size]
-                features = base_model.predict(batch)
-                X_test_features.append(features)
-                del batch  # Free up memory
-                gc.collect()  # Force garbage collection
-            print(f'-----FINISHED PROCESSING ALL TEST IMAGE BATCHES-----')
-
-            X = np.vstack(X_test_features)
-
-            print(f'-----RESHAPING IMAGE SHAPES-----')
-            X = X.reshape(X.shape[0], -1)
-
-            print(f'-----INPUT SHAPE: {X.shape}-----')
-
-        elif model == 'InceptionV3':
-            base_model = InceptionV3(weights='imagenet', include_top=False)
-            print('-----EXTRACTING FEATURES FOR TEST IMAGES-----')
-            batch_size = batch_size  # Set based on available memory
-            X_test_features = []
-
-            # Processing X_train in batches
-            for i in range(0, X.shape[0], batch_size):
-                batch = X[i:i + batch_size]
-                features = base_model.predict(batch)
-                X_test_features.append(features)
-                del batch  # Free up memory
-                gc.collect()  # Force garbage collection
-            print(f'-----FINISHED PROCESSING ALL TEST IMAGE BATCHES-----')
-
-            X = np.vstack(X_test_features)
-
-            print(f'-----RESHAPING IMAGE SHAPES-----')
-            X = X.reshape(X.shape[0], -1)
-
-            print(f'-----INPUT SHAPE: {X.shape}-----')
-
-        elif model == 'EfficientNetB6':
-            base_model = EfficientNetB6(weights='imagenet', include_top=False)
-            print('-----EXTRACTING FEATURES FOR TEST IMAGES-----')
-            batch_size = batch_size  # Set based on available memory
-            X_test_features = []
-
-            # Processing X_train in batches
-            for i in range(0, X.shape[0], batch_size):
-                batch = X[i:i + batch_size]
-                features = base_model.predict(batch)
-                X_test_features.append(features)
-                del batch  # Free up memory
-                gc.collect()  # Force garbage collection
-            print(f'-----FINISHED PROCESSING ALL TEST IMAGE BATCHES-----')
-
-            X = np.vstack(X_test_features)
-
-            print(f'-----RESHAPING IMAGE SHAPES-----')
-            X = X.reshape(X.shape[0], -1)
-
-            print(f'-----INPUT SHAPE: {X.shape}-----')
-
-        elif model == 'EfficientNetV2S':
-            base_model = EfficientNetV2S(weights='imagenet', include_top=False)
-            print('-----EXTRACTING FEATURES FOR TEST IMAGES-----')
-            batch_size = batch_size  # Set based on available memory
-            X_test_features = []
-
-            # Processing X_train in batches
-            for i in range(0, X.shape[0], batch_size):
-                batch = X[i:i + batch_size]
-                features = base_model.predict(batch)
-                X_test_features.append(features)
-                del batch  # Free up memory
-                gc.collect()  # Force garbage collection
-            print(f'-----FINISHED PROCESSING ALL TEST IMAGE BATCHES-----')
-
-            X = np.vstack(X_test_features)
-
-            print(f'-----RESHAPING IMAGE SHAPES-----')
-            X = X.reshape(X.shape[0], -1)
-
-            print(f'-----INPUT SHAPE: {X.shape}-----')
-
-        return X, y
 
 
 def capture_frames(filepath, output_dir, num_frames, label, split=0.8):
@@ -553,593 +230,7 @@ def capture_frames(filepath, output_dir, num_frames, label, split=0.8):
             # Assign split type
             split_type = 'train' if count < split * num_frames else 'test'
             data['split'].append(split_type)
-            import os
-            import gc
-            import pandas as pd
-            import tqdm
-            import matplotlib.pyplot as plt
-            import numpy as np
-            import cv2
-            from keras.preprocessing import image
-            from keras.applications import VGG16, ResNet50, InceptionV3, EfficientNetB6, EfficientNetV2S
-            from sklearn.model_selection import train_test_split
 
-            from keras.utils import to_categorical
-            from tensorflow.keras.models import Sequential
-
-            from tensorflow.keras.layers import Dense, Dropout, Flatten, Conv2D, MaxPooling2D
-            from sklearn.metrics import classification_report
-            # %%
-
-            class CustomModel:
-                def __init__(self, input_shape):
-                    # Initialize the model
-                    self.model = Sequential([
-
-                        Dense(512, activation='relu', input_shape=(input_shape,)),
-                        Dropout(0.5),
-                        Dense(256, activation='relu'),
-                        Dropout(0.5),
-                        Dense(128, activation='relu'),
-                        Dropout(0.5),
-                        Dense(64, activation='relu'),
-                        Dropout(0.5),
-                        Dense(2, activation='softmax')
-                    ])
-                    print("Model initialized.")
-
-                def compile_model(self):
-                    # Compile the model
-                    self.model.compile(
-                        loss='categorical_crossentropy',
-                        optimizer='adam',
-                        metrics=['accuracy']
-                    )
-                    print("Model compiled.")
-
-                def train_model(self, X_train, y_train, batch_size=32, epochs=10, validation_data=None, callbacks=None):
-                    # Train the model
-                    history = self.model.fit(
-                        X_train, y_train,
-                        batch_size=batch_size,
-                        epochs=epochs,
-                        validation_data=validation_data,
-                        callbacks=callbacks
-                    )
-                    print("Training completed.")
-                    return history
-
-                def save_model(self, file_path):
-                    # Save model weights
-                    self.model.save_weights(file_path)
-                    print(f"Weights saved to {file_path}.")
-
-                def load_model(self, file_path):
-                    # Load model weights
-                    self.model.load_weights(file_path)
-                    print(f"Weights loaded from {file_path}.")
-
-                def test_model(self, test_images, test_labels):
-                    # Test the model
-                    scores = self.model.evaluate(test_images, test_labels, verbose=0)
-                    print(f"Test Loss: {scores[0]:.4f}, Test Accuracy: {scores[1]:.4f}")
-
-                    # Generate predictions
-                    predictions = self.model.predict(test_images)
-                    predicted_classes = predictions.argmax(axis=1)
-                    true_classes = test_labels.argmax(axis=1)
-
-                    # Classification Report
-                    report = classification_report(true_classes, predicted_classes, target_names=['Class 0', 'Class 1'])
-                    print("\nClassification Report:\n", report)
-
-                    return scores, report
-
-            def image_to_array(mapping, image_fp, split, image_size=224):
-                image_array = []
-
-                data = pd.read_excel(mapping)
-                data = data[data['split'] == split]
-
-                y_array = []
-
-                for frame in tqdm.tqdm(range(len(data.video_name_frame))):
-                    # loading the image and keeping the target size as (224,224,3)
-
-                    frame_path = os.path.join(image_fp, data.iloc[frame]['video_name_frame'])
-
-                    img = image.load_img(frame_path, target_size=(image_size, image_size, 3))
-
-                    # converting it to array
-
-                    img = image.img_to_array(img)
-
-                    # normalizing the pixel value
-
-                    img = img / 255
-
-                    # appending the image to the image_array list
-
-                    image_array.append(img)
-                    y_array.append(data.iloc[frame]['label'])
-
-                X = np.array(image_array)
-                return X, y_array
-
-            def process_input(X, y, model, num_classes, input_type, batch_size, trainable_layers=None):
-                """
-                    Processes input data for training or testing based on the specified model and input type.
-
-                    Args:
-                        X (numpy.ndarray): Input data containing images.
-                        y (numpy.ndarray): Labels corresponding to the input data.
-                        model (str): The name of the pre-trained model to use for feature extraction.
-                            Options include:
-                                - 'VGG16'
-                                - 'ResNet50'
-                                - 'InceptionV3'
-                                - 'EfficientNetB6'
-                                - 'EfficientNetV2S'
-                        num_classes (int): Number of output classes for the classification task.
-                        input_type (str): Specifies the type of input processing.
-                            - 'train': Splits data into training and testing sets, extracts features, and reshapes.
-                            - 'test': Extracts features from the input data without splitting.
-
-                    Returns:
-                        If `input_type` is 'train':
-                            tuple: (X_train, X_test, y_train, y_test)
-                                - X_train (numpy.ndarray): Processed training features.
-                                - X_test (numpy.ndarray): Processed testing features.
-                                - y_train (numpy.ndarray): One-hot encoded training labels.
-                                - y_test (numpy.ndarray): One-hot encoded testing labels.
-                        If `input_type` is 'test':
-                            tuple: (X, y)
-                                - X (numpy.ndarray): Processed input features.
-                                - y (numpy.ndarray): One-hot encoded labels."""
-
-                y = to_categorical(y, num_classes=num_classes)
-
-                if input_type == 'train':
-                    X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=6303, test_size=0.2,
-                                                                        stratify=y)
-
-                    if model == 'VGG16':
-                        base_model = VGG16(weights='imagenet', include_top=False)
-                        batch_size = batch_size  # Set based on available memory
-                        X_train_features = []
-                        X_test_features = []
-
-                        # Set base model layers as trainable or not
-                        if trainable_layers is not None:
-                            for layer in base_model.layers[:-trainable_layers]:
-                                layer.trainable = False
-                        print(f'-----BEGINNING PROCESSING OF X_TRAIN IMAGE BATCHES-----')
-
-                        # Processing X_train in batches
-                        for i in range(0, X_train.shape[0], batch_size):
-                            batch = X_train[i:i + batch_size]
-                            features = base_model.predict(batch)
-                            X_train_features.append(features)
-                            del batch  # Free up memory
-                            gc.collect()  # Force garbage collection
-                        print(f'-----FINISHED PROCESSING X_TRAIN IMAGE BATCHES-----')
-
-                        X_train = np.vstack(X_train_features)
-                        X_train = X_train.reshape(X_train.shape[0], -1)
-                        print(f'-----X_TRAIN SHAPE {X_train.shape}-----')
-
-                        print(f'-----BEGINNING PROCESSING OF X_TEST IMAGE BATCHES-----')
-
-                        # Processing X_test in batches
-                        for i in range(0, X_test.shape[0], batch_size):
-                            batch = X_test[i:i + batch_size]
-                            features = base_model.predict(batch)
-                            X_test_features.append(features)
-                            del batch  # Free up memory
-                            gc.collect()  # Force garbage collection
-
-                        print(f'-----FINISHED PROCESSING X_TEST IMAGE BATCHES-----')
-
-                        X_test = np.vstack(X_test_features)
-                        X_test = X_test.reshape(X_test.shape[0], -1)
-                        print(f'-----X_TEST SHAPE {X_test.shape}-----')
-
-                    elif model == 'ResNet50':
-                        base_model = ResNet50(weights='imagenet', include_top=False)
-                        batch_size = batch_size  # Set based on available memory
-
-                        # Set base model layers as trainable or not
-                        if trainable_layers is not None:
-                            for layer in base_model.layers[:-trainable_layers]:
-                                layer.trainable = False
-
-                        X_train_features = []
-                        X_test_features = []
-
-                        print(f'-----BEGINNING PROCESSING OF X_TRAIN IMAGE BATCHES-----')
-
-                        # Processing X_train in batches
-                        for i in range(0, X_train.shape[0], batch_size):
-                            batch = X_train[i:i + batch_size]
-                            features = base_model.predict(batch)
-                            X_train_features.append(features)
-                            del batch  # Free up memory
-                            gc.collect()  # Force garbage collection
-                        print(f'-----FINISHED PROCESSING X_TRAIN IMAGE BATCHES-----')
-
-                        X_train = np.vstack(X_train_features)
-                        X_train = X_train.reshape(X_train.shape[0], -1)
-                        print(f'-----X_TRAIN SHAPE {X_train.shape}-----')
-
-                        print(f'-----BEGINNING PROCESSING OF X_TEST IMAGE BATCHES-----')
-
-                        # Processing X_test in batches
-                        for i in range(0, X_test.shape[0], batch_size):
-                            batch = X_test[i:i + batch_size]
-                            features = base_model.predict(batch)
-                            X_test_features.append(features)
-                            del batch  # Free up memory
-                            gc.collect()  # Force garbage collection
-
-                        print(f'-----FINISHED PROCESSING X_TEST IMAGE BATCHES-----')
-
-                        X_test = np.vstack(X_test_features)
-                        X_test = X_test.reshape(X_test.shape[0], -1)
-                        print(f'-----X_TEST SHAPE {X_test.shape}-----')
-
-
-                    elif model == 'InceptionV3':
-                        base_model = InceptionV3(weights='imagenet', include_top=False)
-                        batch_size = batch_size  # Set based on available memory
-                        X_train_features = []
-                        X_test_features = []
-
-                        # Set base model layers as trainable or not
-                        if trainable_layers is not None:
-                            for layer in base_model.layers[:-trainable_layers]:
-                                layer.trainable = False
-                        print(f'-----BEGINNING PROCESSING OF X_TRAIN IMAGE BATCHES-----')
-
-                        # Processing X_train in batches
-                        for i in range(0, X_train.shape[0], batch_size):
-                            batch = X_train[i:i + batch_size]
-                            features = base_model.predict(batch)
-                            X_train_features.append(features)
-                            del batch  # Free up memory
-                            gc.collect()  # Force garbage collection
-                        print(f'-----FINISHED PROCESSING X_TRAIN IMAGE BATCHES-----')
-
-                        X_train = np.vstack(X_train_features)
-                        X_train = X_train.reshape(X_train.shape[0], -1)
-                        print(f'-----X_TRAIN SHAPE {X_train.shape}-----')
-
-                        print(f'-----BEGINNING PROCESSING OF X_TEST IMAGE BATCHES-----')
-
-                        # Processing X_test in batches
-                        for i in range(0, X_test.shape[0], batch_size):
-                            batch = X_test[i:i + batch_size]
-                            features = base_model.predict(batch)
-                            X_test_features.append(features)
-                            del batch  # Free up memory
-                            gc.collect()  # Force garbage collection
-
-                        print(f'-----FINISHED PROCESSING X_TEST IMAGE BATCHES-----')
-
-                        X_test = np.vstack(X_test_features)
-                        X_test = X_test.reshape(X_test.shape[0], -1)
-                        print(f'-----X_TEST SHAPE {X_test.shape}-----')
-
-                    elif model == 'EfficientNetB6':
-                        base_model = EfficientNetB6(weights='imagenet', include_top=False)
-                        batch_size = batch_size  # Set based on available memory
-                        X_train_features = []
-                        X_test_features = []
-
-                        # Set base model layers as trainable or not
-                        if trainable_layers is not None:
-                            for layer in base_model.layers[:-trainable_layers]:
-                                layer.trainable = False
-                        print(f'-----BEGINNING PROCESSING OF X_TRAIN IMAGE BATCHES-----')
-
-                        # Processing X_train in batches
-                        for i in range(0, X_train.shape[0], batch_size):
-                            batch = X_train[i:i + batch_size]
-                            features = base_model.predict(batch)
-                            X_train_features.append(features)
-                            del batch  # Free up memory
-                            gc.collect()  # Force garbage collection
-                        print(f'-----FINISHED PROCESSING X_TRAIN IMAGE BATCHES-----')
-
-                        X_train = np.vstack(X_train_features)
-                        X_train = X_train.reshape(X_train.shape[0], -1)
-                        print(f'-----X_TRAIN SHAPE {X_train.shape}-----')
-
-                        print(f'-----BEGINNING PROCESSING OF X_TEST IMAGE BATCHES-----')
-
-                        # Processing X_test in batches
-                        for i in range(0, X_test.shape[0], batch_size):
-                            batch = X_test[i:i + batch_size]
-                            features = base_model.predict(batch)
-                            X_test_features.append(features)
-                            del batch  # Free up memory
-                            gc.collect()  # Force garbage collection
-
-                        print(f'-----FINISHED PROCESSING X_TEST IMAGE BATCHES-----')
-
-                        X_test = np.vstack(X_test_features)
-                        X_test = X_test.reshape(X_test.shape[0], -1)
-                        print(f'-----X_TEST SHAPE {X_test.shape}-----')
-
-                    elif model == 'EfficientNetV2S':
-                        base_model = EfficientNetV2S(weights='imagenet', include_top=False)
-                        batch_size = batch_size  # Set based on available memory
-                        X_train_features = []
-                        X_test_features = []
-
-                        # Set base model layers as trainable or not
-                        if trainable_layers is not None:
-                            for layer in base_model.layers[:-trainable_layers]:
-                                layer.trainable = False
-                        print(f'-----BEGINNING PROCESSING OF X_TRAIN IMAGE BATCHES-----')
-
-                        # Processing X_train in batches
-                        for i in range(0, X_train.shape[0], batch_size):
-                            batch = X_train[i:i + batch_size]
-                            features = base_model.predict(batch)
-                            X_train_features.append(features)
-                            del batch  # Free up memory
-                            gc.collect()  # Force garbage collection
-                        print(f'-----FINISHED PROCESSING X_TRAIN IMAGE BATCHES-----')
-
-                        X_train = np.vstack(X_train_features)
-                        X_train = X_train.reshape(X_train.shape[0], -1)
-                        print(f'-----X_TRAIN SHAPE {X_train.shape}-----')
-
-                        print(f'-----BEGINNING PROCESSING OF X_TEST IMAGE BATCHES-----')
-
-                        # Processing X_test in batches
-                        for i in range(0, X_test.shape[0], batch_size):
-                            batch = X_test[i:i + batch_size]
-                            features = base_model.predict(batch)
-                            X_test_features.append(features)
-                            del batch  # Free up memory
-                            gc.collect()  # Force garbage collection
-
-                        print(f'-----FINISHED PROCESSING X_TEST IMAGE BATCHES-----')
-
-                        X_test = np.vstack(X_test_features)
-                        X_test = X_test.reshape(X_test.shape[0], -1)
-                        print(f'-----X_TEST SHAPE {X_test.shape}-----')
-
-                    print(f'----------X_TRAIN LENGTH IS {len(X_train)}----------')
-                    print(f'----------X_TRAIN SHAPE IS {X_train.shape}----------')
-
-                    return X_train, X_test, y_train, y_test
-
-                elif input_type == 'test':
-                    if model == 'VGG16':
-                        base_model = VGG16(weights='imagenet', include_top=False)
-                        print('-----EXTRACTING FEATURES FOR TEST IMAGES-----')
-                        batch_size = batch_size  # Set based on available memory
-                        X_test_features = []
-
-                        # Processing X_train in batches
-                        for i in range(0, X.shape[0], batch_size):
-                            batch = X[i:i + batch_size]
-                            features = base_model.predict(batch)
-                            X_test_features.append(features)
-                            del batch  # Free up memory
-                            gc.collect()  # Force garbage collection
-                        print(f'-----FINISHED PROCESSING ALL TEST IMAGE BATCHES-----')
-
-                        X = np.vstack(X_test_features)
-
-                        print(f'-----RESHAPING IMAGE SHAPES-----')
-                        X = X.reshape(X.shape[0], -1)
-
-                        print(f'-----INPUT SHAPE: {X.shape}-----')
-
-                    elif model == 'ResNet50':
-                        base_model = ResNet50(weights='imagenet', include_top=False)
-                        print('-----EXTRACTING FEATURES FOR TEST IMAGES-----')
-                        batch_size = batch_size  # Set based on available memory
-                        X_test_features = []
-
-                        # Processing X_train in batches
-                        for i in range(0, X.shape[0], batch_size):
-                            batch = X[i:i + batch_size]
-                            features = base_model.predict(batch)
-                            X_test_features.append(features)
-                            del batch  # Free up memory
-                            gc.collect()  # Force garbage collection
-                        print(f'-----FINISHED PROCESSING ALL TEST IMAGE BATCHES-----')
-
-                        X = np.vstack(X_test_features)
-
-                        print(f'-----RESHAPING IMAGE SHAPES-----')
-                        X = X.reshape(X.shape[0], -1)
-
-                        print(f'-----INPUT SHAPE: {X.shape}-----')
-
-                    elif model == 'InceptionV3':
-                        base_model = InceptionV3(weights='imagenet', include_top=False)
-                        print('-----EXTRACTING FEATURES FOR TEST IMAGES-----')
-                        batch_size = batch_size  # Set based on available memory
-                        X_test_features = []
-
-                        # Processing X_train in batches
-                        for i in range(0, X.shape[0], batch_size):
-                            batch = X[i:i + batch_size]
-                            features = base_model.predict(batch)
-                            X_test_features.append(features)
-                            del batch  # Free up memory
-                            gc.collect()  # Force garbage collection
-                        print(f'-----FINISHED PROCESSING ALL TEST IMAGE BATCHES-----')
-
-                        X = np.vstack(X_test_features)
-
-                        print(f'-----RESHAPING IMAGE SHAPES-----')
-                        X = X.reshape(X.shape[0], -1)
-
-                        print(f'-----INPUT SHAPE: {X.shape}-----')
-
-                    elif model == 'EfficientNetB6':
-                        base_model = EfficientNetB6(weights='imagenet', include_top=False)
-                        print('-----EXTRACTING FEATURES FOR TEST IMAGES-----')
-                        batch_size = batch_size  # Set based on available memory
-                        X_test_features = []
-
-                        # Processing X_train in batches
-                        for i in range(0, X.shape[0], batch_size):
-                            batch = X[i:i + batch_size]
-                            features = base_model.predict(batch)
-                            X_test_features.append(features)
-                            del batch  # Free up memory
-                            gc.collect()  # Force garbage collection
-                        print(f'-----FINISHED PROCESSING ALL TEST IMAGE BATCHES-----')
-
-                        X = np.vstack(X_test_features)
-
-                        print(f'-----RESHAPING IMAGE SHAPES-----')
-                        X = X.reshape(X.shape[0], -1)
-
-                        print(f'-----INPUT SHAPE: {X.shape}-----')
-
-                    elif model == 'EfficientNetV2S':
-                        base_model = EfficientNetV2S(weights=None, include_top=False)
-                        print('-----EXTRACTING FEATURES FOR TEST IMAGES-----')
-                        batch_size = batch_size  # Set based on available memory
-                        X_test_features = []
-
-                        # Processing X_train in batches
-                        for i in range(0, X.shape[0], batch_size):
-                            batch = X[i:i + batch_size]
-                            features = base_model.predict(batch)
-                            X_test_features.append(features)
-                            del batch  # Free up memory
-                            gc.collect()  # Force garbage collection
-                        print(f'-----FINISHED PROCESSING ALL TEST IMAGE BATCHES-----')
-
-                        X = np.vstack(X_test_features)
-
-                        print(f'-----RESHAPING IMAGE SHAPES-----')
-                        X = X.reshape(X.shape[0], -1)
-
-                        print(f'-----INPUT SHAPE: {X.shape}-----')
-
-                    return X, y
-
-            def capture_frames(filepath, output_dir, num_frames, label, split=0.8):
-                """
-                    Captures frames from videos in the specified filepath and organizes the data into a dataframe.
-
-                    Args:
-                        filepath (str): Path to the directory containing video files.
-                        output_dir (str): Directory to save captured frames as images.
-                        num_frames (int): Number of frames to capture from each video.
-                        label (str): Label for the frames (e.g., class label).
-                        split (float): Fraction of frames to use as training data (0 < split <= 1).
-
-                    Returns:
-                        pd.DataFrame: DataFrame containing metadata for captured frames.
-                    """
-
-                data = {'video_name': [],
-                        'frame': [],
-                        'video_name_frame': [],
-                        'label': [],
-                        'split': []}
-
-                print(f'----------THERE ARE {len(os.listdir(filepath))} VIDEOS----------')
-                for video_file in tqdm.tqdm(os.listdir(filepath)):
-                    video_path = os.path.join(filepath, video_file)
-                    cap = cv2.VideoCapture(video_path)  # capturing the video from the given path
-
-                    # Total number of frames in the video
-                    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-
-                    if total_frames == 0:
-                        print(f"Skipping {video_file}: unable to determine frame count.")
-                        continue
-
-                    # Calculate the interval to capture frames
-                    interval = max(1, total_frames // num_frames)
-
-                    count = 0
-                    for i in range(0, total_frames, interval):
-                        cap.set(cv2.CAP_PROP_POS_FRAMES, i)  # Set the video position to the i-th frame
-                        ret, frame = cap.read()
-
-                        if not ret:
-                            print(f"Frame {i} not readable in {video_file}. Skipping.")
-                            continue
-
-                        filename = os.path.join(output_dir, f"{video_file}-frm-{count}.jpg")
-                        data['video_name'].append(video_file)
-                        data['frame'].append(count)
-                        data['video_name_frame'].append(f"{video_file}-frm-{count}.jpg")
-                        data['label'].append(label)
-
-                        # Assign split type
-                        split_type = 'train' if count < split * num_frames else 'test'
-                        data['split'].append(split_type)
-
-                        # Save the frame as an image
-                        cv2.imwrite(filename, frame)
-                        count += 1
-
-                        # Stop if the desired number of frames is captured
-                        if count >= num_frames:
-                            break
-
-                    cap.release()
-                # Convert dictionary to DataFrame
-                df = pd.DataFrame(data)
-                print(f'----------THERE ARE {len(df.video_name_frame)} IMAGES----------')
-                return df
-
-            def create_dataset_metadata(video_folder, folder_name, label=0):
-                """
-                Processes videos in a folder and creates a dataset with video metadata and frames.
-
-                Parameters:
-                - video_folder: Path to the folder containing video files.
-                - folder_name: The name of the folder containing video files
-                - label: Label to assign to each video (e.g., 1 for fake, 0 for real).
-
-                Returns:
-                - DataFrame with columns:  'folder_name', 'video_name', 'label'
-                """
-
-                data = {'folder_name': [],
-                        'video_name': [],
-                        'label': []
-                        }
-
-                for video_file in tqdm.tqdm(os.listdir(video_folder)):
-                    video_path = os.path.join(video_folder, video_file)
-
-                    # Check if it's a valid video file
-                    if not os.path.isfile(video_path):
-                        continue
-
-                    # Append data to the dictionary
-                    data['folder_name'].append(folder_name)
-                    data['video_name'].append(video_file)
-                    data['label'].append(label)
-
-                # Convert dictionary to DataFrame
-                df = pd.DataFrame(data)
-                return df
-
-            def read_images(filepath):
-                data = pd.read_excel(filepath)
-
-                X = []
-                for img_name in data['video_name']:
-                    img = plt.imread('' + img_name)
-                    X.append(img)
-                X = np.array(X)
             # Save the frame as an image
             cv2.imwrite(filename, frame)
             count += 1
@@ -1188,12 +279,3 @@ def create_dataset_metadata(video_folder, folder_name, label=0):
     # Convert dictionary to DataFrame
     df = pd.DataFrame(data)
     return df
-
-def read_images(filepath):
-    data = pd.read_excel(filepath)
-
-    X = []
-    for img_name in data['video_name']:
-        img = plt.imread('' + img_name)
-        X.append(img)
-    X = np.array(X)
