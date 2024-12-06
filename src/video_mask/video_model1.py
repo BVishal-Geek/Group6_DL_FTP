@@ -147,7 +147,7 @@ model.compile(optimizer=optimizers.Adam(), loss=focal_loss(), metrics=['accuracy
 
 # Training configuration
 batch_size = 1
-epochs = 20
+epochs = 2000
 
 # Train the model using combined datasets and auxiliary features
 history = model.fit(
@@ -163,7 +163,7 @@ history = model.fit(
 # Evaluate the model on test data using combined datasets and auxiliary features
 predictions = model.predict([X_test,
                              aux_test])
-predicted_classes = (predictions > 0.35).astype(int)[:, 0]
+predicted_classes = (predictions > 0.25).astype(int)[:, 0]
 
 # Calculate accuracy and F1 score on test data
 accuracy = accuracy_score(y_test, predicted_classes)
