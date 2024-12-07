@@ -49,29 +49,77 @@ def implementation_page():
             st.success(f"Model {selected_model} executed successfully!")
 
 
+# Introduction Page Functionality
+def introduction_page():
+    st.title("Forgery Detection - Group 6")
+
+    # Project Overview
+    st.subheader("Project Overview")
+    st.markdown("""
+    - Every day, approximately **3.2 billion images** and **720,000 hours of video** are shared online. [Reference](https://www.qut.edu.au/insights/business/3.2-billion-images-and-720000-hours-of-video-are-shared-online-daily.-can-you-sort-real-from-fake)
+    - The rise of deepfakes has led to a significant increase in **morphed videos and images**, causing misinformation and trust issues globally.
+    - Misinformation through manipulated media can have **massive societal impacts**, including political, financial, and personal consequences.
+    - Our project aims to address this issue by building robust models to detect forgery in multimedia content.
+    """)
+
+    # Dataset Information
+    st.subheader("Dataset Information")
+    st.markdown("""
+    - We are using the **CelebDF dataset** for training and evaluation. [Reference](https://openaccess.thecvf.com/content_CVPR_2020/papers/Li_Celeb-DF_A_Large-Scale_Challenging_Dataset_for_DeepFake_Forensics_CVPR_2020_paper.pdf)
+    - The dataset includes videos categorized into:
+      - Real videos (e.g., celebrity videos)
+      - Fake videos (deepfake-generated content)
+      - YouTube videos (real-world examples)
+    """)
+
+    # Learning Curve
+    st.subheader("Learning Curve")
+    st.markdown("""
+    - Started with exploring datasets and research papers from repositories like [Awesome Deepfakes Detection](https://github.com/Daisy-Zhang/Awesome-Deepfakes-Detection?tab=readme-ov-file).
+    - Worked on image datasets to understand how to load, segment, and preprocess data for real and fake classes.
+    - Performed exploratory data analysis (EDA) on datasets to understand their structure before implementation.
+      - For example, in video datasets, we ensured segmentation of train-test splits such that the test set contains unseen data.
+      - Calculated mean pixel values for real and fake images, observing differences in red and blue channels.
+      - Used these pixel means as auxiliary features in the fully connected layer of our models, which improved accuracy significantly.
+    - Reviewed research papers like [CelebDF: A Large-Scale Challenging Dataset for DeepFake Forensics](https://openaccess.thecvf.com/content_CVPR_2020/papers/Li_Celeb-DF_A_Large-Scale_Challenging_Dataset_for_DeepFake_Forensics_CVPR_2020_paper.pdf) to explore architectures used by other researchers.
+      - Integrated insights into our implementation to build robust models.
+    """)
+
+    # Future Work
+    st.subheader("Future Work")
+    st.markdown("""
+    - Generate face meshes for detected faces and analyze changes in node values on the mesh.
+    - Implement masking techniques to highlight differences between real and altered images as auxiliary features.
+    - Explore multi-modal approaches combining video and audio streams for forgery detection.
+    """)
+
+
 # About Us Page Functionality
 def about_us_page():
     st.title("About Us - Group 6")
+
     team_members = [
         "Khush Shah",
         "Nena Beecham",
         "Vishal Bakshi",
         "Bharat Khandelwal"
     ]
+
     st.write("We are a team of researchers working on multimedia security and authenticity detection.")
+
     st.subheader("Team Members:")
+
     for member in team_members:
         st.write(f"- {member}")
 
 
 # Sidebar Navigation Menu
-menu = ["Project", "Implementation", "About Us"]
+menu = ["Introduction", "Implementation", "About Us"]
 choice = st.sidebar.selectbox("Menu", menu)
 
-if choice == "Implementation":
+if choice == "Introduction":
+    introduction_page()
+elif choice == "Implementation":
     implementation_page()
-elif choice == "Project":
-    st.title("Forgery Detection - Group 6")
-    st.write("This project aims to detect forgeries in multimedia content using advanced deep learning techniques.")
 elif choice == "About Us":
     about_us_page()
