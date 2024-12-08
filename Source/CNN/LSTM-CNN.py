@@ -153,8 +153,6 @@ X_val, y_val = process_videos(val_videos, val_labels)
 print("Processing test videos...")
 X_test, y_test = process_videos(test_videos, test_labels)
 
-
-# Save the oversampled training data
 np.save("X_train_oversampled.npy", X_train)
 np.save("y_train_oversampled.npy", y_train)
 
