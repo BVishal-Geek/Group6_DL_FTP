@@ -147,10 +147,20 @@ all_labels = real_labels + fake_labels
 # Process Videos
 print("Processing training videos...")
 X_train, y_train = process_videos(train_videos, train_labels)
+
 print("Processing validation videos...")
 X_val, y_val = process_videos(val_videos, val_labels)
 print("Processing test videos...")
 X_test, y_test = process_videos(test_videos, test_labels)
+
+
+# Save the oversampled training data
+np.save("X_train_oversampled.npy", X_train)
+np.save("y_train_oversampled.npy", y_train)
+
+# Load the data in subsequent runs to save time
+X_train = np.load("X_train_oversampled.npy")
+y_train = np.load("y_train_oversampled.npy")
 
 # Pad Features
 print("Padding features...")
