@@ -91,7 +91,7 @@ def f1_macro(y_true, y_pred):
 #%%
 if __name__ == '__main__':
     print('----------LOADING FINE TUNED MODEL----------')
-    model = load_model('finetuned_vgg16v2.keras', custom_objects={'f1_macro': f1_macro})
+    model = load_model('finetuned_vgg16.keras', custom_objects={'f1_macro': f1_macro})
 
     print('----------COMPILING FINE TUNED MODEL----------')
     model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy','recall'])
