@@ -1,17 +1,18 @@
 import numpy as np
 from tensorflow.keras.models import load_model
-from keras.utils import to_categorical
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from sklearn.metrics import classification_report, f1_score
+import tensorflow as tf
 import sys
 sys.path.append("../../")
 
-from components.utils import *
+from components.image_classification import *
+from components.image_preprocessing import *
 #%%
 print('----------INSTANTIATING IMAGE GENERATORS----------')
 
 test_directory = '../../../data/Frames_test'
-BATCH_SIZE = 32
+BATCH_SIZE = 64
 generator = ImageDataGenerator()
 test_generator = generator.flow_from_directory(
     directory=test_directory,
@@ -23,8 +24,26 @@ test_generator = generator.flow_from_directory(
 )
 #%%
 # ----- LOAD TRAINED MODEL AND GENERATE PREDICTIONS -----
+@tf.keras.utils.register_keras_serializable()
+def f1_macro(y_true, y_pred):
+    """
+    Compute F1 macro score as a custom metric.
+    """
+    y_pred = tf.round(y_pred)  # Convert predictions to 0 or 1
+    tp = tf.reduce_sum(tf.cast(y_true * y_pred, tf.float32), axis=0)
+    fp = tf.reduce_sum(tf.cast((1 - y_true) * y_pred, tf.float32), axis=0)
+    fn = tf.reduce_sum(tf.cast(y_true * (1 - y_pred), tf.float32), axis=0)
 
-model = load_model('finetuned_vgg16.h5')
+    precision = tp / (tp + fp + tf.keras.backend.epsilon())
+    recall = tp / (tp + fn + tf.keras.backend.epsilon())
+    f1 = 2 * precision * recall / (precision + recall + tf.keras.backend.epsilon())
+
+    # Compute the mean F1 score across all classes
+    f1_macro = tf.reduce_mean(f1)
+    return f1_macro
+print('----------LOADING FINE TUNED MODEL----------')
+
+model = load_model('finetuned_vgg16.keras', custom_objects={'f1_macro': f1_macro})
 model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy','recall'])
 
 steps = test_generator.n // BATCH_SIZE
