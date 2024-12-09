@@ -1,21 +1,105 @@
+import os
 import streamlit as st
+import numpy as np
+import cv2
+import tensorflow as tf
+from tensorflow.keras.applications import InceptionV3
+from tensorflow.keras.applications.inception_v3 import preprocess_input
+from tensorflow.keras.models import load_model
 
-# Set up the main configuration
+# Force CPU mode if GPU initialization fails (temporary fix)
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+
+# Constants for InceptionV3 model
+FRAME_SIZE = (299, 299)  # InceptionV3 expects 299x299 images
+NUM_FEATURES = 2048  # Features extracted from InceptionV3's pooling layer
+MAX_SEQ_LENGTH = 16
+
+# Load Pretrained Feature Extractor (InceptionV3)
+try:
+    feature_extractor = InceptionV3(weights="imagenet", include_top=False, pooling="avg")
+except Exception as e:
+    st.error(f"Error initializing InceptionV3: {e}")
+
 st.set_page_config(page_title="Forgery Detection - Group 6", layout="wide")
 
 
-# Define a function for preprocessing based on model selection
-def preprocess_for_model(model_name):
-    if model_name == "VGG":
-        st.write("Preprocessing for VGG model...")
-        # Add specific preprocessing steps for VGG here
-        st.write("Images resized to (224x224) and normalized.")
-    elif model_name == "LSTM":
-        st.write("Preprocessing for LSTM model...")
-        # Add specific preprocessing steps for LSTM here
-        st.write("Extracting temporal features from video frames.")
-    else:
-        st.write("Please select a valid model.")
+# Helper Functions
+def crop_center_square(frame):
+    """Crop the center square of the frame."""
+    y, x = frame.shape[:2]
+    min_dim = min(y, x)
+    start_x = (x // 2) - (min_dim // 2)
+    start_y = (y // 2) - (min_dim // 2)
+    return frame[start_y:start_y + min_dim, start_x:start_x + min_dim]
+
+
+def preprocess_video_for_inception(video_path, max_frames=MAX_SEQ_LENGTH):
+    """Preprocess a video for InceptionV3."""
+    cap = cv2.VideoCapture(video_path)
+    frames = []
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+    if total_frames < max_frames:
+        st.error(f"Video has only {total_frames} frames but requires at least {max_frames}.")
+        return None
+
+    frame_indices = np.linspace(0, total_frames - 1, max_frames, dtype=int)
+
+    for i in range(total_frames):
+        ret, frame = cap.read()
+        if not ret:
+            break
+        if i in frame_indices:
+            # Crop and resize the frame
+            frame = crop_center_square(frame)
+            frame = cv2.resize(frame, FRAME_SIZE)
+            frame = preprocess_input(frame)
+            frames.append(frame)
+
+    cap.release()
+
+    if len(frames) < max_frames:
+        st.error(f"Insufficient frames after preprocessing. Collected {len(frames)} frames.")
+        return None
+
+    frames = np.array(frames)
+
+    # Debugging: Check shape of frames before prediction
+    st.write(f"Shape of preprocessed frames: {frames.shape}")
+
+    # Extract features using the feature extractor
+    try:
+        features = feature_extractor.predict(frames, verbose=0)
+        st.write(f"Shape of extracted features: {features.shape}")
+    except Exception as e:
+        st.error(f"Error during feature extraction: {e}")
+        return None
+
+    features = np.expand_dims(features, axis=0)  # Add batch dimension
+    mask = np.ones((1, MAX_SEQ_LENGTH), dtype=bool)  # Create a mask
+
+    return features, mask
+
+
+def test_video_with_inception(video_path, model):
+    """Test a video using the trained InceptionV3-based model."""
+    data = preprocess_video_for_inception(video_path)
+
+    if data is None:
+        return None
+
+    features, mask = data
+
+    # Make predictions
+    try:
+        prediction = model.predict([features, mask])
+        label = int(prediction > 0.5)  # Threshold at 0.5
+        label_name = "Fake" if label == 1 else "Real"
+        return label_name, prediction[0][0]
+    except Exception as e:
+        st.error(f"Error during model prediction: {e}")
+        return None
 
 
 # Implementation Page Functionality
@@ -23,7 +107,7 @@ def implementation_page():
     st.title("Implementation - Forgery Detection")
 
     # Dropdown menu to select the model
-    model_options = ["Select a Model", "VGG", "LSTM"]
+    model_options = ["Select a Model", "InceptionV3"]
     selected_model = st.selectbox("Choose a Model:", model_options)
 
     if selected_model != "Select a Model":
@@ -33,20 +117,27 @@ def implementation_page():
         uploaded_file = st.file_uploader("Upload a Video File", type=["mp4", "avi", "mov", "mkv"])
 
         if uploaded_file is not None:
-            # Save uploaded file temporarily
             temp_video_path = f"temp_{uploaded_file.name}"
             with open(temp_video_path, "wb") as f:
                 f.write(uploaded_file.read())
 
             st.success("Video uploaded successfully!")
 
-            # Preprocess based on selected model
-            preprocess_for_model(selected_model)
+            if selected_model == "InceptionV3":
+                st.info("Running InceptionV3 model...")
 
-            # Add placeholder for further processing (e.g., running the model)
-            st.info(f"Running {selected_model} model...")
-            # Placeholder for model inference (to be implemented)
-            st.success(f"Model {selected_model} executed successfully!")
+                inception_model_path = "best_model.keras"
+                try:
+                    model = load_model(inception_model_path, compile=False)
+                    result = test_video_with_inception(temp_video_path, model)
+
+                    if result is not None:
+                        label_name, confidence = result
+                        st.success(f"The video is classified as **{label_name}** with confidence **{confidence:.4f}**.")
+                    else:
+                        st.error("Failed to process the video.")
+                except Exception as e:
+                    st.error(f"Error loading model: {e}")
 
 
 # Introduction Page Functionality
