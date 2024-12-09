@@ -1,31 +1,35 @@
 #%%
-import numpy as np
-from tensorflow.keras.callbacks import ModelCheckpoint
-from sklearn.model_selection import train_test_split
-
-from keras.utils import to_categorical
-from tensorflow.keras.applications import ResNet50
-from tensorflow.keras import optimizers
-
-from tensorflow.keras.models import Model
-
-from tensorflow.keras.layers import Dense, GlobalAveragePooling2D
+from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau, ModelCheckpoint
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
 import sys
-from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
 sys.path.append("../../")
 
-from components.utils import *
+from components.image_classification import *
+from components.image_preprocessing import *
 #%%
-# ----- LOAD TRAIN IMAGES AND RESHAPE FOR MODELING -----
-print('----------LOADING TRAIN IMAGES----------')
+print('\n\n----------INSTANTIATING IMAGE GENERATORS----------\n\n')
 
-X = np.load('../train_images.npy')
-y = np.load('../y_train.npy')
+train_directory = '../../../data/Frames_train_ela'
+valid_directory = '../../../data/Frames_valid_ela'
+BATCH_SIZE = 64
+MODEL_NAME = 'InceptionV3'
+generator = ImageDataGenerator()
+train_generator = generator.flow_from_directory(
+    directory=train_directory,
+    target_size=(224, 224),
+    batch_size=BATCH_SIZE,
+    class_mode="binary",
+    shuffle=True,
+    seed=6303
+)
 
-print('----------TRAIN IMAGES LOADED----------')
-y = to_categorical(y, num_classes=2)
-X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=6303, test_size=0.2)
-
+valid_generator = generator.flow_from_directory(
+    directory=valid_directory,
+    target_size=(224, 224),
+    batch_size=BATCH_SIZE,
+    class_mode="binary",
+    shuffle=True,
+    seed=6303)
 #%%
 base_model = FineTuneModel(model_name='InceptionV3', input_shape=(224, 224, 3), num_classes=2)
 
@@ -34,19 +38,38 @@ base_model.add_custom_layers()
 base_model.freeze_base_layers()
 base_model.compile_model(learning_rate=0.0001)
 
-base_history = base_model.train_model((X_train, y_train), (X_test, y_test), epochs=15, batch_size=16)
-plot_loss(history=base_history, model_name='InceptionV3', layers_info='Pretrained Layers Frozen', image_name='InceptionV3_pretrained')
+steps_per_epoch = train_generator.n // BATCH_SIZE
+validation_steps = valid_generator.n // BATCH_SIZE
+print(f'\n\n----------TRAIN STEPS PER EPOCH: {steps_per_epoch}----------\n\n')
+print(f'\n\n----------VALIDATION STEP: {validation_steps}----------\n\n')
+#%%
+print(f'\n\n----------CALCULATING CLASS WEIGHTS----------\n\n')
+class_weights = compute_class_weights_from_generator(train_generator, steps_per_epoch)
+
+print(f'\n\n----------CLASS WEIGHTS {class_weights}----------\n\n')
 
 #%%
-base_model.unfreeze_layers(num_layers=30)
-base_model.compile_model(optimizer='adamw',learning_rate=0.00001)
+early_stopping = EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True, mode='min')
 
-early_stopping = EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
-reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.000005,
-                              patience=5, min_lr=0.00001)
+base_history = base_model.train_model(train_generator, valid_generator, epochs=15, steps_per_epoch=steps_per_epoch, validation_steps=validation_steps,callbacks=[early_stopping], class_weight=class_weights)
+plot_loss(history=base_history, model_name='InceptionV3_ela', layers_info='Pretrained Layers Frozen', image_name='InceptionV3_pretrained_ela')
 
-base_history_ft = base_model.train_model((X_train, y_train), (X_test, y_test), epochs=25, batch_size=16, callbacks=[early_stopping, reduce_lr])
-plot_loss(history=base_history_ft, model_name='InceptionV3', layers_info='Last 30 Layers Unfrozen', image_name='InceptionV3_finetuned')
+#%%
+base_model.unfreeze_layers(num_layers=60)
+base_model.compile_model(optimizer='adam',learning_rate=0.00001)
+
+early_stopping = EarlyStopping(monitor='val_loss', patience=15, restore_best_weights=True)
+reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.25,
+                              patience=5)
+checkpoint = ModelCheckpoint('finetuned_InceptionV3_ela.keras',save_best_only=True, monitor='val_loss', verbose=1, mode='min')
+
+base_history_ft = base_model.train_model(train_generator, valid_generator, epochs=25, steps_per_epoch=steps_per_epoch, validation_steps=validation_steps, callbacks=[early_stopping, reduce_lr, checkpoint], class_weight=class_weights)
+plot_loss(history=base_history_ft, model_name='InceptionV3_ela', layers_info='Last 60 Layers Unfrozen', image_name='InceptionV3_finetuned_ela')
 
 # Save the fine-tuned model
-base_model.save_model('finetuned_inceptionv3.h5')
+name = 'finetuned_InceptionV3_ela'
+base_model.save_model(f'{name}.keras')
+
+#%%
+base_model.model_summary(to_file=name)
+print(base_model.model_summary())
