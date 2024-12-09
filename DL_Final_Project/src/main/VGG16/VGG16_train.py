@@ -9,8 +9,8 @@ from components.image_preprocessing import *
 #%%
 print('\n\n----------INSTANTIATING IMAGE GENERATORS----------\n\n')
 
-train_directory = '../../../data/Frames_train'
-valid_directory = '../../../data/Frames_valid'
+train_directory = '../../../data/Frames_train_ela'
+valid_directory = '../../../data/Frames_valid_ela'
 BATCH_SIZE = 64
 generator = ImageDataGenerator()
 train_generator = generator.flow_from_directory(
@@ -51,7 +51,7 @@ print(f'\n\n----------CLASS WEIGHTS {class_weights}----------\n\n')
 early_stopping = EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True, mode='min')
 
 base_history = base_model.train_model(train_generator, valid_generator, epochs=15, steps_per_epoch=steps_per_epoch, validation_steps=validation_steps,callbacks=[early_stopping], class_weight=class_weights)
-plot_loss(history=base_history, model_name='VGG16', layers_info='Pretrained Layers Frozen', image_name='VGG16_pretrained')
+plot_loss(history=base_history, model_name='VGG16_ela', layers_info='Pretrained Layers Frozen', image_name='VGG16_pretrained_ela')
 
 #%%
 base_model.unfreeze_layers(num_layers=30)
@@ -63,10 +63,10 @@ reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.25,
 checkpoint = ModelCheckpoint('finetuned_vgg16.keras',save_best_only=True, monitor='val_loss', verbose=1, mode='min')
 
 base_history_ft = base_model.train_model(train_generator, valid_generator, epochs=25, steps_per_epoch=steps_per_epoch, validation_steps=validation_steps, callbacks=[early_stopping, reduce_lr, checkpoint], class_weight=class_weights)
-plot_loss(history=base_history_ft, model_name='VGG16', layers_info='All Layers Unfrozen', image_name='VGG16_finetuned')
+plot_loss(history=base_history_ft, model_name='VGG16_ela', layers_info='All Layers Unfrozen', image_name='VGG16_finetuned_ela')
 
 # Save the fine-tuned model
-name = 'finetuned_vgg16'
+name = 'finetuned_vgg16_ela'
 base_model.save_model(f'{name}.keras')
 
 #%%

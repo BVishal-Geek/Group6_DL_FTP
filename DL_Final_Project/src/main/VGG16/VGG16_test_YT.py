@@ -11,7 +11,7 @@ from components.image_preprocessing import *
 #%%
 print('----------INSTANTIATING IMAGE GENERATORS----------')
 
-test_directory = '../../../data/Frames_test_ela'
+test_directory = '../../../data/YT_Frames_test_ela'
 BATCH_SIZE = 64
 generator = ImageDataGenerator()
 test_generator = generator.flow_from_directory(
@@ -22,6 +22,7 @@ test_generator = generator.flow_from_directory(
     shuffle=False,
     seed=6303
 )
+
 #%%
 # ----- LOAD TRAINED MODEL AND GENERATE PREDICTIONS -----
 @tf.keras.utils.register_keras_serializable()
