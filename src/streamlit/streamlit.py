@@ -4,25 +4,25 @@ import numpy as np
 import cv2
 import tensorflow as tf
 from tensorflow.keras.applications import InceptionV3
-from tensorflow.keras.applications.inception_v3 import preprocess_input
+from tensorflow.keras.applications.inception_v3 import preprocess_input as inception_preprocess_input
+from tensorflow.keras.applications.vgg16 import preprocess_input as vgg_preprocess_input
 from tensorflow.keras.models import load_model
+
+# Constants for Models
+FRAME_SIZE_INCEPTION = (299, 299)  # InceptionV3 expects 299x299 images
+FRAME_SIZE_VGG = (224, 224)  # VGG16 expects 224x224 images
+MAX_SEQ_LENGTH = 16  # Number of frames to process
 
 # Force CPU mode if GPU initialization fails (temporary fix)
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
-# Constants for InceptionV3 model
-FRAME_SIZE = (299, 299)  # InceptionV3 expects 299x299 images
-NUM_FEATURES = 2048  # Features extracted from InceptionV3's pooling layer
-MAX_SEQ_LENGTH = 16
-
-# Load Pretrained Feature Extractor (InceptionV3)
+# Load Pretrained Feature Extractor for InceptionV3
 try:
-    feature_extractor = InceptionV3(weights="imagenet", include_top=False, pooling="avg")
+    feature_extractor_inception = InceptionV3(weights="imagenet", include_top=False, pooling="avg")
 except Exception as e:
     st.error(f"Error initializing InceptionV3: {e}")
 
 st.set_page_config(page_title="Forgery Detection - Group 6", layout="wide")
-
 
 # Helper Functions
 def crop_center_square(frame):
@@ -53,8 +53,8 @@ def preprocess_video_for_inception(video_path, max_frames=MAX_SEQ_LENGTH):
         if i in frame_indices:
             # Crop and resize the frame
             frame = crop_center_square(frame)
-            frame = cv2.resize(frame, FRAME_SIZE)
-            frame = preprocess_input(frame)
+            frame = cv2.resize(frame, FRAME_SIZE_INCEPTION)
+            frame = inception_preprocess_input(frame)
             frames.append(frame)
 
     cap.release()
@@ -65,13 +65,9 @@ def preprocess_video_for_inception(video_path, max_frames=MAX_SEQ_LENGTH):
 
     frames = np.array(frames)
 
-    # Debugging: Check shape of frames before prediction
-    st.write(f"Shape of preprocessed frames: {frames.shape}")
-
     # Extract features using the feature extractor
     try:
-        features = feature_extractor.predict(frames, verbose=0)
-        st.write(f"Shape of extracted features: {features.shape}")
+        features = feature_extractor_inception.predict(frames, verbose=0)
     except Exception as e:
         st.error(f"Error during feature extraction: {e}")
         return None
@@ -80,6 +76,62 @@ def preprocess_video_for_inception(video_path, max_frames=MAX_SEQ_LENGTH):
     mask = np.ones((1, MAX_SEQ_LENGTH), dtype=bool)  # Create a mask
 
     return features, mask
+
+
+def preprocess_video_for_vgg(video_path, max_frames=MAX_SEQ_LENGTH):
+    """Preprocess a video for VGG16."""
+    cap = cv2.VideoCapture(video_path)
+    frames = []
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+    if total_frames < max_frames:
+        st.error(f"Video has only {total_frames} frames but requires at least {max_frames}.")
+        return None
+
+    frame_indices = np.linspace(0, total_frames - 1, max_frames, dtype=int)
+
+    for i in range(total_frames):
+        ret, frame = cap.read()
+        if not ret:
+            break
+        if i in frame_indices:
+            # Crop and resize the frame
+            frame = crop_center_square(frame)
+            frame = cv2.resize(frame, FRAME_SIZE_VGG)
+            frame = vgg_preprocess_input(frame)
+            frames.append(frame)
+
+    cap.release()
+
+    if len(frames) < max_frames:
+        st.error(f"Insufficient frames after preprocessing. Collected {len(frames)} frames.")
+        return None
+
+    frames = np.array(frames)
+
+    return frames
+
+
+def test_video_with_vgg(video_path, model):
+    """Test a video using the trained VGG16-based model."""
+    frames = preprocess_video_for_vgg(video_path)
+
+    if frames is None:
+        return None
+
+    predictions = []
+
+    for frame in frames:  # Iterate over individual frames
+        frame = np.expand_dims(frame, axis=0)  # Add batch dimension (1, 224, 224, 3)
+        prediction = model.predict(frame, verbose=0)  # Predict for single frame
+        predictions.append(prediction[0][0])  # Extract probability for positive class
+
+    avg_prediction = np.mean(predictions)  # Aggregate predictions (average probability)
+
+    label = int(avg_prediction > 0.5)  # Threshold at 0.5
+    label_name = "Fake" if label == 1 else "Real"
+
+    return label_name, avg_prediction
 
 
 def test_video_with_inception(video_path, model):
@@ -91,7 +143,6 @@ def test_video_with_inception(video_path, model):
 
     features, mask = data
 
-    # Make predictions
     try:
         prediction = model.predict([features, mask])
         label = int(prediction > 0.5)  # Threshold at 0.5
@@ -107,7 +158,7 @@ def implementation_page():
     st.title("Implementation - Forgery Detection")
 
     # Dropdown menu to select the model
-    model_options = ["Select a Model", "InceptionV3"]
+    model_options = ["Select a Model", "InceptionV3", "VGG16"]
     selected_model = st.selectbox("Choose a Model:", model_options)
 
     if selected_model != "Select a Model":
@@ -125,19 +176,35 @@ def implementation_page():
 
             if selected_model == "InceptionV3":
                 st.info("Running InceptionV3 model...")
-
                 inception_model_path = "best_model.keras"
                 try:
-                    model = load_model(inception_model_path, compile=False)
-                    result = test_video_with_inception(temp_video_path, model)
+                    model_inception = load_model(inception_model_path, compile=False)
+                    result_inception = test_video_with_inception(temp_video_path, model_inception)
 
-                    if result is not None:
-                        label_name, confidence = result
-                        st.success(f"The video is classified as **{label_name}** with confidence **{confidence:.4f}**.")
+                    if result_inception is not None:
+                        label_name_incep, confidence_incep = result_inception
+                        st.success(
+                            f"The video is classified as **{label_name_incep}** with confidence **{confidence_incep:.4f}**.")
                     else:
                         st.error("Failed to process the video.")
                 except Exception as e:
-                    st.error(f"Error loading model: {e}")
+                    st.error(f"Error loading InceptionV3 model: {e}")
+
+            elif selected_model == "VGG16":
+                st.info("Running VGG16 model...")
+                vgg_model_path = "finetuned_vgg16.keras"
+                try:
+                    model_vgg16 = load_model(vgg_model_path)
+                    result_vgg16 = test_video_with_vgg(temp_video_path, model_vgg16)
+
+                    if result_vgg16 is not None:
+                        label_name_vgg, confidence_vgg = result_vgg16
+                        st.success(
+                            f"The video is classified as **{label_name_vgg}** with confidence **{confidence_vgg:.4f}**.")
+                    else:
+                        st.error("Failed to process the video.")
+                except Exception as e:
+                    st.error(f"Error loading VGG16 model: {e}")
 
 
 # Introduction Page Functionality
