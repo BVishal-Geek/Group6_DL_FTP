@@ -49,17 +49,9 @@ class FineTuneModel:
         x = GlobalAveragePooling2D()(x)
         x = Dense(256, activation='relu')(x)
         x = Dense(128, activation='relu')(x)
+        x = Dense(64, activation='relu')(x)
         predictions = Dense(1, activation='sigmoid')(x)
         self.model = Model(inputs=self.base_model.input, outputs=predictions)
-        # F1 Macro 44.73 0.17 0.73
-        # gap = GlobalAveragePooling2D()(x)
-        # attention = Dense(self.base_model.output_shape[-1], activation='sigmoid')(gap)
-        # attention_output = Multiply()([x, attention])  # Element-wise multiplication
-        # gap_output = GlobalAveragePooling2D()(attention_output)
-        # output = Dense(1, activation='sigmoid')(gap_output)
-        #
-        # self.model = Model(inputs=self.base_model.input, outputs=output)
-
 
     def freeze_base_layers(self):
         """
