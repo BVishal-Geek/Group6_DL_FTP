@@ -48,7 +48,7 @@ class_weights = compute_class_weights_from_generator(train_generator, steps_per_
 print(f'\n\n----------CLASS WEIGHTS {class_weights}----------\n\n')
 
 #%%
-early_stopping = EarlyStopping(monitor='val_f1_macro', patience=10, restore_best_weights=True, mode='max')
+early_stopping = EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True, mode='min')
 
 base_history = base_model.train_model(train_generator, valid_generator, epochs=15, steps_per_epoch=steps_per_epoch, validation_steps=validation_steps,callbacks=[early_stopping], class_weight=class_weights)
 plot_loss(history=base_history, model_name='VGG16', layers_info='Pretrained Layers Frozen', image_name='VGG16_pretrained')
