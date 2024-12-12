@@ -22,4 +22,16 @@ Install the required Python packages with:
 - CNN + GRU
 - CNN + Dense
 
+## Download Models
+```python3 downloadModels.py```
 
+## To Train Model
+### VGG16
+```python3 VGG16_train.py```
+
+### InceptionV3
+```python3 InceptionV3_train.py```
+
+## To Test The Models
+- Please run streamlit application
+```streamlit run streamlit.py```
