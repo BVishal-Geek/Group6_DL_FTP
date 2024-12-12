@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="c50e3fed-47c3-44dd-a554-4e8986d24620" name="Changes" comment="I have updated the streamlit app with the implementation page.">
+      <change beforePath="$PROJECT_DIR$/src/streamlit/streamlit.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/streamlit/streamlit.py" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Python Script" />
+      </list>
+    </option>
+  </component>
+  <component name="Git.Settings">
+    <option name="PREVIOUS_COMMIT_AUTHORS">
+      <list>
+        <option value="BVishal-Geek &lt;bakshiv193@gmail.com&gt;" />
+      </list>
+    </option>
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="GitHubPullRequestSearchHistory">{
+  &quot;lastFilter&quot;: {
+    &quot;state&quot;: &quot;OPEN&quot;,
+    &quot;assignee&quot;: &quot;KhushJShah&quot;
+  }
+}</component>
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/BVishal-Geek/Group6_DL_FTP.git&quot;,
+    &quot;accountId&quot;: &quot;2a2c998e-8090-47e6-b4d8-0994d4cf31d0&quot;
+  }
+}</component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 4
+}</component>
+  <component name="ProjectId" id="2pM5buV28D8Dz9Eyf3InhexwOIi" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;Python.streamlit.executor&quot;: &quot;Run&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;KhushJShah&quot;,
+    &quot;last_opened_file_path&quot;: &quot;C:/Users/nupur/computer/Desktop/Deep Learning/Final Project/Group6_DL_FTP/best_model.keras&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable&quot;,
+    &quot;two.files.diff.last.used.file&quot;: &quot;C:/Users/nupur/computer/Desktop/Deep Learning/Final Project/Group6_DL_FTP/best_model.keras&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  }
+}</component>
+  <component name="RecentsManager">
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="C:\Users\nupur\computer\Desktop\Deep Learning\Final Project\Group6_DL_FTP\src\streamlit" />
+    </key>
+  </component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-js-predefined-d6986cc7102b-5c90d61e3bab-JavaScript-PY-242.23339.19" />
+        <option value="bundled-python-sdk-0029f7779945-399fe30bd8c1-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-242.23339.19" />
+      </set>
+    </attachedChunks>
+  </component>
+  <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="c50e3fed-47c3-44dd-a554-4e8986d24620" name="Changes" comment="" />
+      <created>1732563179111</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1732563179111</updated>
+      <workItem from="1732563180179" duration="4012000" />
+      <workItem from="1732760350600" duration="2662000" />
+      <workItem from="1732763045404" duration="149000" />
+      <workItem from="1732925815603" duration="5060000" />
+      <workItem from="1732941280199" duration="110000" />
+      <workItem from="1733161158522" duration="1781000" />
+      <workItem from="1733169423082" duration="6133000" />
+      <workItem from="1733246960933" duration="2000000" />
+      <workItem from="1733273009875" duration="6450000" />
+      <workItem from="1733328228508" duration="14265000" />
+      <workItem from="1733440226423" duration="5722000" />
+      <workItem from="1733523253033" duration="4303000" />
+      <workItem from="1733600332294" duration="3033000" />
+      <workItem from="1733693100215" duration="6174000" />
+      <workItem from="1733776889894" duration="5637000" />
+      <workItem from="1733788251865" duration="643000" />
+      <workItem from="1733790802651" duration="1871000" />
+    </task>
+    <task id="LOCAL-00001" summary="Triied CNN for the FaceApp dataset">
+      <option name="closed" value="true" />
+      <created>1732570043281</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1732570043281</updated>
+    </task>
+    <task id="LOCAL-00002" summary="Triied CNN for the FaceApp dataset">
+      <option name="closed" value="true" />
+      <created>1732570105928</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1732570105928</updated>
+    </task>
+    <task id="LOCAL-00003" summary="I now tried VGG model, the f1 score has improved">
+      <option name="closed" value="true" />
+      <created>1732763154842</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1732763154842</updated>
+    </task>
+    <task id="LOCAL-00004" summary="I have integrated the fake datasets that wre generated through the various methods, the accuracy has decreased by 50%, so I need to work upon it.">
+      <option name="closed" value="true" />
+      <created>1732941343272</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1732941343272</updated>
+    </task>
+    <task id="LOCAL-00005" summary="I tried the image dataset with the auxiliary features, the accuracy doubled. I am now trying the video dataset, and trying to load it.">
+      <option name="closed" value="true" />
+      <created>1733285464896</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1733285464897</updated>
+    </task>
+    <task id="LOCAL-00006" summary="I have tried a separate approach on the data loading, I am trying to calculate the means of the images first, and then add it as the auxiliary data to the model.">
+      <option name="closed" value="true" />
+      <created>1733445450848</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1733445450849</updated>
+    </task>
+    <task id="LOCAL-00007" summary="Updated the model file with the means, and the streamlit file has been updated with the demo page.">
+      <option name="closed" value="true" />
+      <created>1733527646306</created>
+      <option name="number" value="00007" />
+      <option name="presentableId" value="LOCAL-00007" />
+      <option name="project" value="LOCAL" />
+      <updated>1733527646306</updated>
+    </task>
+    <task id="LOCAL-00008" summary="I have updated the streamlit app with the introduction page.">
+      <option name="closed" value="true" />
+      <created>1733602796634</created>
+      <option name="number" value="00008" />
+      <option name="presentableId" value="LOCAL-00008" />
+      <option name="project" value="LOCAL" />
+      <updated>1733602796634</updated>
+    </task>
+    <task id="LOCAL-00009" summary="I have updated the streamlit app with the implementation page.">
+      <option name="closed" value="true" />
+      <created>1733706202473</created>
+      <option name="number" value="00009" />
+      <option name="presentableId" value="LOCAL-00009" />
+      <option name="project" value="LOCAL" />
+      <updated>1733706202473</updated>
+    </task>
+    <task id="LOCAL-00010" summary="I have updated the streamlit app with the implementation page.">
+      <option name="closed" value="true" />
+      <created>1733779365594</created>
+      <option name="number" value="00010" />
+      <option name="presentableId" value="LOCAL-00010" />
+      <option name="project" value="LOCAL" />
+      <updated>1733779365595</updated>
+    </task>
+    <option name="localTasksCounter" value="11" />
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="Added links to proposal" />
+    <MESSAGE value="Triied CNN for the FaceApp dataset" />
+    <MESSAGE value="I now tried VGG model, the f1 score has improved" />
+    <MESSAGE value="I have integrated the fake datasets that wre generated through the various methods, the accuracy has decreased by 50%, so I need to work upon it." />
+    <MESSAGE value="I tried the image dataset with the auxiliary features, the accuracy doubled. I am now trying the video dataset, and trying to load it." />
+    <MESSAGE value="I have tried a separate approach on the data loading, I am trying to calculate the means of the images first, and then add it as the auxiliary data to the model." />
+    <MESSAGE value="Updated the model file with the means, and the streamlit file has been updated with the demo page." />
+    <MESSAGE value="I have updated the streamlit app with the introduction page." />
+    <MESSAGE value="I have updated the streamlit app with the implementation page." />
+    <option name="LAST_COMMIT_MESSAGE" value="I have updated the streamlit app with the implementation page." />
+  </component>
+  <component name="com.intellij.coverage.CoverageDataManagerImpl">
+    <SUITE FILE_PATH="coverage/Group6_DL_FTP$streamlit.coverage" NAME="streamlit Coverage Results" MODIFIED="1733792252165" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/src/streamlit" />
+  </component>
+</project>
