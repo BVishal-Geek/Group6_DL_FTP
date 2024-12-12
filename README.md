@@ -1,31 +1,25 @@
 # Deep Fake Video classification
 
 ## Problem Selection & Justification
-The rise of deep fake videos on social media makes it hard to tell real content from fake ones, raising concerns about trust, security, and misinformation. These fake videos can be used to spread false information or harm reputations. To address this, we need better methods to automatically detect deep fake videos. This project aims to create tools that help users and organizations spot and reduce the impact of deep fakes.
+The exponential growth of multimedia content has revolutionized how we communicate and share information. Approximately 3.2 billion images and 720,000 hours of videos are shared [daily](https://www.qut.edu.au/insights/business/3.2-billion-images-and-720000-hours-of-video-are-shared-online-daily.-can-you-sort-real-from-fake). However, this surge in content has also given rise to challenges such as misinformation and deepfake manipulation.
+
+Deepfakes—synthetically generated or altered videos and images—pose a significant threat to digital trust. These manipulations have been used for:
+- Political Propaganda: Fake videos of politicians making inflammatory statements.
+- Financial Fraud: Identity theft through morphed images.
+- Misinformation Campaigns: Spreading false narratives with convincing fake visuals.  
+The societal impact of deepfakes is profound, ranging from eroding public trust to causing financial losses and reputational damage. Detecting these manipulations is crucial to mitigating their harmful effects.
+Our project aims to address this issue by developing robust deep-learning models for forgery detection. By leveraging state-of-the-art datasets like CelebDF V2 and implementing advanced architectures such as GRU, and VGG. We strive to create a reliable system for identifying manipulated multimedia content.
 
 ## Dataset
-Dataset: CelebA Deep Fake Dataset, Deepfake Detection Challenge from Kaggle.
-Size and Suitability: The combined data from both sites exceeds 400GB. We will be working with a sample subset that is sufficient for training deep neural networks.
+[**Celeb-DF V2**](https://www.kaggle.com/datasets/reubensuju/celeb-df-v2)
+- **Description**: The Celeb-DF V2 dataset contains both real and fake (deepfake) videos of celebrities. There are a little under 1,000 real videos and over 5,000 fake videos. 
 
-## Network Architecture
-We plan to use Convolutional Neural Networks (CNNs) for this task, as CNNs are highly effective for image and video classification tasks due to their ability to learn spatial hierarchies in data. We will experiment with a combination of different pre-trained networks (e.g., ResNet, VGG, or EfficientNet) to assess their performance and leverage their learned features for deep fake detection.
-The network will likely be customized to suit the specific needs of the deep fake video classification task, including:
-Fine-tuning pre-trained models for facial recognition and manipulation detection.
-Implementing custom pre-processing techniques, based on research papers, to improve feature extraction and reduce noise in the dataset.
+## Installing Dependencies
+Install the required Python packages with:  
+```pip install -r requirements.txt```
 
-## Framework
-We will implement the deep learning model using TensorFlow, which is a widely-used and robust framework for building and training deep learning models. TensorFlow offers excellent support for both CPU and GPU computation, making it suitable for handling the large dataset and the computational demands of training deep networks. Additionally, TensorFlow’s ecosystem includes powerful libraries for data augmentation, model evaluation, and deployment, which will be useful throughout the project.
+## Deep Learning Network Architecture
+- CNN + GRU
+- CNN + Dense
 
-## Performance Evaluation
-To assess the performance of the deep fake detection model, we will use the following metrics.
-
-### Primary Metric
-Accuracy
-
-### Secondary Metrics
-Precision, 		
- Recall,	
- F1 Score,
- AUC,
- Log Loss,
 
